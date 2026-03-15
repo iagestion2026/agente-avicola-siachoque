@@ -6,30 +6,70 @@ API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 if not API_KEY:
     print("ERROR: No se encontro ANTHROPIC_API_KEY")
     exit(1)
-print(f"OK: API key encontrada ({API_KEY[:12]}...)")
+print(f"OK: API key ({API_KEY[:12]}...)")
 Path("reportes").mkdir(exist_ok=True)
+
+NIT_DANDO_PASOS = "900514813"
+
+# ═══════════════════════════════════════════════════════
+# LOS 123 MUNICIPIOS DE BOYACÁ
+# Buscamos por nombre de municipio para no perder ninguno
+# ═══════════════════════════════════════════════════════
+
+MUNICIPIOS_BOYACA = [
+    "TUNJA","SOGAMOSO","DUITAMA","PAIPA","CHIQUINQUIRA","MONIQUIRA",
+    "SOATA","PUERTO BOYACA","SANTA ROSA DE VITERBO","NOBSA","TIBASOSA",
+    "SAMACA","VENTAQUEMADA","VILLA DE LEYVA","RAQUIRA","SACHICA",
+    "TINJACA","ARCABUCO","GACHANTIVA","SUTAMARCHAN","SANTA SOFIA",
+    "RONDONA","TOGUI","BELEN","CERINZA","CORRALES","FLORESTA","BUSBANZA",
+    "BETEITIVA","CHITA","JERICO","SUSACON","TIPACOQUE","SOCHA","TASCO",
+    "PAZ DE RIO","SOCOTA","TUTAZA","MONGUA","GAMEZA","TOPAGA","MONGUI",
+    "IZA","CUITIVA","TOTA","AQUITANIA","LABRANZAGRANDE","PISBA","PAYA",
+    "PAJARITO","CUBARA","GUICAN","EL COCUY","PANQUEBA","EL ESPINO","CHISCAS",
+    "CACOTA DE VELASCO","BOAVITA","COVARACHIA","LA UVITA","SAN MATEO",
+    "CHITARAQUE","SANTANA","BRICENO","SAN JOSE DE PARE","TOGUI","BERBEO",
+    "RAMIRIQUI","RONDON","TIBANA","TURMEQUE","UMBITA","VIRACACHA",
+    "JENESANO","NUEVO COLON","BOYACA","CIENEGA","SIACHOQUE","SORACA",
+    "TOCA","COMBITA","CHIVATA","OICATA","MOTAVITA","CUCAITA","SORA",
+    "SAMACA","TUNUNGUA","PORE","OTANCHE","COPER","MARIPI","SAN PABLO BORBUR",
+    "BRICEÑO","MUZO","CALDAS","BUENAVISTA","QUIPAMA","SABOYA","CALDAS",
+    "CHIQUINQUIRA","SAN MIGUEL DE SEMA","SAN JOSE DE PARE","SUTAMARCHAN",
+    "TUNUNGUÁ","ALMEIDA","CHIVOR","MACANAL","MIRAFLORES","SANTA MARIA",
+    "SAN LUIS DE GACENO","LA CAPILLA","PACHAVITA","GUATEQUE","GUAYATA",
+    "SUTATENZA","TENZA","GARAGOA","MACANAL","SANTA BARBARA","SOMONDOCO",
+    "SUTATENZA","BERBEO","ZETAQUIRA","PAEZ","CAMPOHERMOSO"
+]
+
+# Versiones simplificadas para busqueda (sin tildes)
+MUNICIPIOS_BUSQUEDA = list(set([
+    m.upper()
+    .replace("Á","A").replace("É","E").replace("Í","I")
+    .replace("Ó","O").replace("Ú","U")
+    for m in MUNICIPIOS_BOYACA
+]))
 
 # ═══════════════════════════════════════════════════════
 # UTILIDADES
 # ═══════════════════════════════════════════════════════
 
-def api_get(url, params, nombre):
+def api_get(url, params, nombre=""):
     for intento in range(3):
         try:
             r = requests.get(url, params=params, timeout=30,
                              headers={"Accept": "application/json"})
             r.raise_for_status()
             datos = r.json()
-            if isinstance(datos, list):
-                print(f"    {nombre}: {len(datos)} registros")
+            if isinstance(datos, list) and datos:
+                if nombre:
+                    print(f"    {nombre}: {len(datos)} registros")
                 return datos
-            print(f"    {nombre}: respuesta inesperada")
             return []
         except Exception as e:
             if intento < 2:
-                time.sleep(5)
+                time.sleep(4)
             else:
-                print(f"    Error {nombre}: {e}")
+                if nombre:
+                    print(f"    Error {nombre}: {e}")
                 return []
     return []
 
@@ -52,9 +92,7 @@ def claude_buscar(prompt, intento=1):
                         if b.get("type") == "text")
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 429 and intento <= 3:
-            espera = intento * 30
-            print(f"    Limite API. Esperando {espera}s...")
-            time.sleep(espera)
+            time.sleep(intento * 30)
             return claude_buscar(prompt, intento + 1)
         return f"Error: {e}"
     except Exception as e:
@@ -62,190 +100,236 @@ def claude_buscar(prompt, intento=1):
 
 
 def clasificar_proveedor(nombre):
-    if not nombre or nombre == "N/A":
+    if not nombre or nombre in ("N/A", ""):
         return "NO IDENTIFICADO"
     p = nombre.upper()
-    if any(x in p for x in ["BOYACA","BOYACÁ","TUNJA","DUITAMA","SOGAMOSO",
-                              "PAIPA","SIACHOQUE","SORACA","SORACÁ",
-                              "VENTAQUEMADA","SAMACA","TOCA","CHIVATA",
-                              "JENESANO","COMBITA","RAMIRIQUI"]):
+    muni_boyaca = ["BOYACA","BOYACÁ","TUNJA","DUITAMA","SOGAMOSO","PAIPA",
+                   "SIACHOQUE","SORACA","VENTAQUEMADA","SAMACA","TOCA",
+                   "CHIVATA","JENESANO","COMBITA","RAMIRIQUI","MOTAVITA",
+                   "CUCAITA","OICATA","NUEVO COLON","TIBANA","TURMEQUE",
+                   "BELEN","SOATA","CHIQUINQUIRA","MONIQUIRA","NOBSA",
+                   "TIBASOSA","VILLA DE LEYVA","RAQUIRA","AQUITANIA"]
+    externos = ["BOGOTA","BOGOTÁ","MEDELLIN","MEDELLÍN","CALI","BARRANQUILLA",
+                "BUCARAMANGA","ANTIOQUIA","CUNDINAMARCA","SANTANDER","VALLE",
+                "ATLANTICO","RISARALDA","CALDAS","NARINO","TOLIMA","HUILA"]
+    cooperativas = ["COOPERATIVA","COOP ","ASOCIACION","ASOC ","FUNDACION",
+                    "FUNDACIÓN","CORP ","CORPORACION","CORPORACIÓN"]
+    if any(x in p for x in muni_boyaca):
         return "PROVEEDOR LOCAL BOYACA"
-    if any(x in p for x in ["BOGOTA","BOGOTÁ","MEDELLIN","MEDELLÍN","CALI",
-                              "BARRANQUILLA","BUCARAMANGA","ANTIOQUIA",
-                              "CUNDINAMARCA","SANTANDER","VALLE","ATLANTICO"]):
+    if any(x in p for x in externos):
         return "INTERMEDIARIO EXTERNO"
-    if any(x in p for x in ["COOPERATIVA","COOP ","ASOCIACION","ASOC ",
-                              "FUNDACION","FUNDACIÓN","CORP ","CORPORACION"]):
+    if any(x in p for x in cooperativas):
         return "FUNDACION / COOPERATIVA"
     return "EXTERNO (verificar)"
 
 
 def clasificar_categoria(objeto):
     if not objeto:
-        return "GENERAL"
+        return "ALIMENTOS GENERAL"
     o = objeto.upper()
     if any(x in o for x in ["FAMI","LACTANTE","GESTANTE","MATERNO","CANASTA NUTRI"]):
         return "ICBF MATERNO INFANTIL"
-    if any(x in o for x in ["HOGAR COMUNITARIO","CDI","BIENESTAR","PRIMERA INFANCIA"]):
+    if any(x in o for x in ["HOGAR COMUNITARIO","CDI","PRIMERA INFANCIA","BIENESTAR FAMILIAR"]):
         return "HOGAR COMUNITARIO ICBF"
-    if any(x in o for x in ["PAE","ESCOLAR","ESTUDIANTE","RESTAURANTE ESCOLAR",
-                              "ALIMENTACION ESCOLAR","COMPLEMENTO NUTRICIONAL"]):
+    if any(x in o for x in ["PAE","ESCOLAR","RESTAURANTE ESCOLAR","ALIMENTACION ESCOLAR"]):
         return "PAE ESCOLAR"
     if any(x in o for x in ["HOSPITAL","SALUD","ESE ","CLINICA","CENTRO DE SALUD"]):
         return "HOSPITAL / ESE"
-    if any(x in o for x in ["EJERCITO","EJÉRCITO","BATALLON","BATALLÓN","TROPA",
-                              "MILITAR","FUERZAS MILITARES","RANCHO MILITAR",
-                              "ALFM","SOLDADO"]):
+    if any(x in o for x in ["EJERCITO","EJÉRCITO","BATALLON","BATALLÓN",
+                              "TROPA","MILITAR","ALFM","RANCHO"]):
         return "FUERZAS MILITARES"
-    if any(x in o for x in ["ICBF","INFANCIA","BIENESTAR FAMILIAR"]):
+    if any(x in o for x in ["ICBF","INFANCIA","BIENESTAR"]):
         return "ICBF GENERAL"
-    if any(x in o for x in ["HUEVO","AVICOLA","AVÍCOLA","POLLO","ALIMENTO",
-                              "VIVERE","MERCADO","CANASTA"]):
-        return "ALIMENTOS GENERAL"
-    return "OTRO"
+    return "ALIMENTOS GENERAL"
+
+
+def norm(c, ce, cm, co, cp, cn, cv, cf, fuente):
+    proveedor = str(c.get(cp, "N/A"))
+    objeto    = str(c.get(co, "N/A"))[:130]
+    return {
+        "fuente":    fuente,
+        "entidad":   str(c.get(ce, "N/A")),
+        "municipio": str(c.get(cm, "N/A")),
+        "objeto":    objeto,
+        "categoria": clasificar_categoria(objeto),
+        "proveedor": proveedor,
+        "nit_prov":  str(c.get(cn, "N/A")),
+        "tipo_prov": clasificar_proveedor(proveedor),
+        "valor":     str(c.get(cv, "N/A")),
+        "fecha":     str(c.get(cf, "N/A"))[:10]
+    }
 
 
 # ═══════════════════════════════════════════════════════
-# MÓDULO SECOP — 5 DATASETS
+# BÚSQUEDA SECOP — POR MUNICIPIO + POR TERMINO
 # ═══════════════════════════════════════════════════════
 
-def secop_dataset(url, campo_entidad, campo_municipio, campo_objeto,
-                  campo_proveedor, campo_nit, campo_valor, campo_fecha,
-                  terminos, nombre_ds, limite=10):
-    """Consulta genérica a cualquier dataset SECOP"""
+def buscar_por_municipios_y_termino(url, campo_municipio, campo_objeto,
+                                     campos_select, terminos, municipios,
+                                     fuente, campo_fecha="fecha_de_firma"):
+    """
+    Estrategia correcta: busca por cada municipio de Boyacá individualmente.
+    Esto garantiza que no se pierda ninguno de los 123 municipios.
+    """
     resultados = []
-    for t in terminos:
+    total_encontrados = 0
+
+    # Construir condición OR con todos los municipios
+    # SECOP usa nombres en mayúsculas sin tildes
+    muni_condicion = " OR ".join(
+        f"upper({campo_municipio}) like '%{m}%'"
+        for m in municipios[:40]  # primero los 40 más cercanos a Siachoque
+    )
+
+    for termino in terminos:
         datos = api_get(url, {
-            "$where": f"upper({campo_objeto}) like '%{t}%' "
-                      f"AND upper({campo_municipio}) like '%BOYAC%'",
+            "$where": f"upper({campo_objeto}) like '%{termino}%' "
+                      f"AND ({muni_condicion})",
             "$order": f"{campo_fecha} DESC",
-            "$limit": str(limite),
-            "$select": f"{campo_entidad},{campo_municipio},{campo_objeto},"
-                       f"{campo_proveedor},{campo_nit},{campo_valor},{campo_fecha}"
-        }, f"{nombre_ds} '{t}'")
+            "$limit": "50",
+            "$select": campos_select
+        }, f"{fuente} '{termino}' (40 munis)")
         resultados.extend(datos)
+        total_encontrados += len(datos)
         time.sleep(1)
-    return resultados, (campo_entidad, campo_municipio, campo_objeto,
-                        campo_proveedor, campo_nit, campo_valor, campo_fecha)
 
-
-def normalizar(raw_list, campos_map, fuente):
-    """Normaliza registros de distintos datasets al mismo esquema"""
-    (ce, cm, co, cp, cn, cv, cf) = campos_map
-    normalizados = []
-    for c in raw_list:
-        entidad   = str(c.get(ce, "N/A"))
-        municipio = str(c.get(cm, "N/A"))
-        objeto    = str(c.get(co, "N/A"))[:130]
-        proveedor = str(c.get(cp, "N/A"))
-        nit       = str(c.get(cn, "N/A"))
-        valor     = str(c.get(cv, "N/A"))
-        fecha     = str(c.get(cf, "N/A"))[:10]
-        normalizados.append({
-            "fuente":    fuente,
-            "entidad":   entidad,
-            "municipio": municipio,
-            "objeto":    objeto,
-            "categoria": clasificar_categoria(objeto),
-            "proveedor": proveedor,
-            "nit_prov":  nit,
-            "tipo_prov": clasificar_proveedor(proveedor),
-            "valor":     valor,
-            "fecha":     fecha
-        })
-    return normalizados
-
-
-def secop_completo():
-    print("\n[1/5] Consultando SECOP — 5 fuentes de datos...")
-    todos_raw = []
-
-    # Términos por categoría
-    t_alimentos  = ["HUEVO","AVICOLA","AVÍCOLA","ALIMENTO","VIVERES","VÍVERES"]
-    t_icbf       = ["FAMI","ICBF","MATERNO","CANASTA","LACTANTE",
-                    "HOGAR COMUNITARIO","CDI","COMPLEMENTACION"]
-    t_pae        = ["PAE","ESCOLAR","ALIMENTACION ESCOLAR"]
-    t_militar    = ["EJERCITO","EJÉRCITO","BATALLON","ALFM","MILITAR","RANCHO"]
-    t_fundacion  = ["DANDO PASOS","DANDO PASOS DE VIDA"]  # buscar proveedor especifico
-
-    todos_terminos = t_alimentos + t_icbf + t_pae + t_militar + t_fundacion
-
-    # ── DS1: SECOP II Contratos (jbjy-vk9h) — campos correctos ──
-    print("  [DS1] SECOP II Contratos...")
-    raw1, m1 = secop_dataset(
-        url="https://www.datos.gov.co/resource/jbjy-vk9h.json",
-        campo_entidad="nombre_entidad",
-        campo_municipio="ciudad",         # campo correcto en este dataset
-        campo_objeto="descripcion_del_proceso",
-        campo_proveedor="proveedor_adjudicado",
-        campo_nit="documento_proveedor",
-        campo_valor="valor_del_contrato",
-        campo_fecha="fecha_de_firma",
-        terminos=t_alimentos + t_icbf + t_pae,
-        nombre_ds="SECOP II"
-    )
-    todos_raw.extend(normalizar(raw1, m1, "SECOP II"))
-
-    # ── DS2: SECOP Integrado (rpmr-utcd) — más histórico ──
-    print("  [DS2] SECOP Integrado...")
-    raw2, m2 = secop_dataset(
-        url="https://www.datos.gov.co/resource/rpmr-utcd.json",
-        campo_entidad="nombre_entidad",
-        campo_municipio="municipio",
-        campo_objeto="descripcion_del_proceso",
-        campo_proveedor="proveedor_adjudicado",
-        campo_nit="nit_proveedor",
-        campo_valor="valor_total_adjudicacion",
-        campo_fecha="fecha_de_firma",
-        terminos=["HUEVO","PAE","FAMI","ICBF","EJERCITO","BATALLON"],
-        nombre_ds="Integrado"
-    )
-    todos_raw.extend(normalizar(raw2, m2, "SECOP Integrado"))
-
-    # ── DS3: SECOP I Contratos (xvdy-vvsk) ──
-    print("  [DS3] SECOP I...")
-    raw3, m3 = secop_dataset(
-        url="https://www.datos.gov.co/resource/xvdy-vvsk.json",
-        campo_entidad="nombre_entidad",
-        campo_municipio="municipio",
-        campo_objeto="descripcion_proceso",
-        campo_proveedor="nombre_del_proveedor",
-        campo_nit="nit_del_proveedor",
-        campo_valor="valor_contrato",
-        campo_fecha="fecha_adjudicacion",
-        terminos=["HUEVO","FAMI","ICBF","PAE","BATALLON"],
-        nombre_ds="SECOP I"
-    )
-    todos_raw.extend(normalizar(raw3, m3, "SECOP I"))
-
-    # ── DS4: Contratos ICBF SECOP II (cvym-nxdk) — ESPECÍFICO ICBF ──
-    print("  [DS4] Contratos ICBF especifico...")
-    for t in ["FAMI","HOGAR COMUNITARIO","MATERNO","CDI","HUEVO","ALIMENTO"]:
-        datos = api_get(
-            "https://www.datos.gov.co/resource/cvym-nxdk.json",
-            {
-                "$where": f"upper(descripcion_del_proceso) like '%{t}%' "
-                          f"AND upper(ciudad) like '%BOYAC%'",
-                "$order": "fecha_de_firma DESC",
-                "$limit": "15",
-                "$select": "nombre_entidad,ciudad,descripcion_del_proceso,"
-                           "proveedor_adjudicado,documento_proveedor,"
-                           "valor_del_contrato,fecha_de_firma"
-            },
-            f"ICBF DS '{t}'"
+    # Segunda pasada: los municipios restantes
+    if len(municipios) > 40:
+        muni_condicion2 = " OR ".join(
+            f"upper({campo_municipio}) like '%{m}%'"
+            for m in municipios[40:]
         )
-        todos_raw.extend(normalizar(
-            datos,
-            ("nombre_entidad","ciudad","descripcion_del_proceso",
-             "proveedor_adjudicado","documento_proveedor",
-             "valor_del_contrato","fecha_de_firma"),
-            "ICBF SECOP II"
-        ))
+        for termino in ["HUEVO","PAE","FAMI","ICBF"]:  # solo los principales
+            datos = api_get(url, {
+                "$where": f"upper({campo_objeto}) like '%{termino}%' "
+                          f"AND ({muni_condicion2})",
+                "$order": f"{campo_fecha} DESC",
+                "$limit": "30",
+                "$select": campos_select
+            }, f"{fuente} '{termino}' (munis 41-123)")
+            resultados.extend(datos)
+            time.sleep(1)
+
+    print(f"  {fuente}: {len(resultados)} registros en 123 municipios Boyacá")
+    return resultados
+
+
+def buscar_dando_pasos():
+    print(f"  [DANDO PASOS] Buscando NIT {NIT_DANDO_PASOS}...")
+    resultados = []
+
+    for url, campo_prov, campo_nit, campo_muni, campo_obj, campo_val, campo_fecha in [
+        ("https://www.datos.gov.co/resource/jbjy-vk9h.json",
+         "proveedor_adjudicado","documento_proveedor","ciudad",
+         "descripcion_del_proceso","valor_del_contrato","fecha_de_firma"),
+        ("https://www.datos.gov.co/resource/9kwp-7nmt.json",
+         "nom_razon_social_contratista","identificacion_del_contratista",
+         "municipios_ejecucion","objeto_a_contratar","cuantia_proceso",
+         "fecha_de_firma_del_contrato"),
+        ("https://www.datos.gov.co/resource/rpmr-utcd.json",
+         "proveedor_adjudicado","nit_proveedor","municipio",
+         "descripcion_del_proceso","valor_total_adjudicacion","fecha_de_firma"),
+    ]:
+        datos = api_get(url, {
+            "$where": f"{campo_nit}='{NIT_DANDO_PASOS}' "
+                      f"OR upper({campo_prov}) like '%DANDO PASOS%'",
+            "$limit": "100",
+            "$select": f"nombre_entidad,{campo_muni},{campo_obj},"
+                       f"{campo_prov},{campo_nit},{campo_val},{campo_fecha}"
+        }, f"Dando Pasos NIT")
+        for c in datos:
+            r = norm(c, "nombre_entidad", campo_muni, campo_obj,
+                     campo_prov, campo_nit, campo_val, campo_fecha,
+                     "Dando Pasos de Vida")
+            r["tipo_prov"] = "FUNDACION DANDO PASOS DE VIDA"
+            resultados.append(r)
         time.sleep(1)
 
-    # ── DS5: Fuerzas Militares — ALFM (agencia logistica) ──
-    print("  [DS5] Fuerzas Militares / ALFM...")
-    for t in ["HUEVO","RANCHO","ALIMENTO","AVICOLA"]:
+    print(f"    Dando Pasos: {len(resultados)} contratos encontrados")
+    return resultados
+
+
+def secop_123_municipios():
+    print("\n[1/5] Consultando SECOP — 123 municipios de Boyacá...")
+    todos = []
+
+    # Municipios prioritarios (radio 80km de Siachoque) van primero
+    muni_prioritarios = [
+        "SIACHOQUE","SORACA","TOCA","CHIVATA","OICATA","MOTAVITA","TUNJA",
+        "VENTAQUEMADA","SAMACA","CUCAITA","SORA","COMBITA","JENESANO",
+        "NUEVO COLON","TIBANA","TURMEQUE","UMBITA","RAMIRIQUI","BOYACA",
+        "ALMEIDA","CHIQUIZA","RAQUIRA","DUITAMA","PAIPA","SOGAMOSO",
+        "NOBSA","TIBASOSA","VILLA DE LEYVA","CHIQUINQUIRA","MONIQUIRA",
+        "SANTA ROSA DE VITERBO","BELEN","SOATA","PUERTO BOYACA",
+        "AQUITANIA","LABRANZAGRANDE","SAN LUIS DE GACENO","MIRAFLORES",
+        "GARAGOA","GUATEQUE"
+    ]
+    muni_resto = [m for m in MUNICIPIOS_BUSQUEDA if m not in muni_prioritarios]
+    todos_munis_ordenados = muni_prioritarios + muni_resto
+
+    terminos_principales = ["HUEVO","AVICOLA","PAE","FAMI","ICBF","MATERNO",
+                            "CANASTA","HOGAR COMUNITARIO","EJERCITO","BATALLON"]
+
+    # ── DS1: SECOP II (jbjy-vk9h) — campo ciudad ──
+    print("  [DS1] SECOP II por municipio...")
+    raw1 = buscar_por_municipios_y_termino(
+        url="https://www.datos.gov.co/resource/jbjy-vk9h.json",
+        campo_municipio="ciudad",
+        campo_objeto="descripcion_del_proceso",
+        campos_select="nombre_entidad,ciudad,departamento,descripcion_del_proceso,"
+                      "proveedor_adjudicado,documento_proveedor,"
+                      "valor_del_contrato,fecha_de_firma,estado_contrato",
+        terminos=terminos_principales,
+        municipios=todos_munis_ordenados,
+        fuente="SECOP II",
+        campo_fecha="fecha_de_firma"
+    )
+    for c in raw1:
+        todos.append(norm(c, "nombre_entidad","ciudad","descripcion_del_proceso",
+                         "proveedor_adjudicado","documento_proveedor",
+                         "valor_del_contrato","fecha_de_firma","SECOP II"))
+
+    # ── DS2: SECOP I Completo (9kwp-7nmt) — campo municipios_ejecucion ──
+    print("  [DS2] SECOP I por municipio...")
+    raw2 = buscar_por_municipios_y_termino(
+        url="https://www.datos.gov.co/resource/9kwp-7nmt.json",
+        campo_municipio="municipios_ejecucion",
+        campo_objeto="objeto_a_contratar",
+        campos_select="nombre_entidad,municipios_ejecucion,objeto_a_contratar,"
+                      "nom_razon_social_contratista,identificacion_del_contratista,"
+                      "dpto_y_muni_contratista,cuantia_proceso,fecha_de_firma_del_contrato",
+        terminos=["HUEVO","AVICOLA","PAE","FAMI","ICBF","BATALLON"],
+        municipios=todos_munis_ordenados,
+        fuente="SECOP I",
+        campo_fecha="fecha_de_firma_del_contrato"
+    )
+    for c in raw2:
+        todos.append(norm(c, "nombre_entidad","municipios_ejecucion","objeto_a_contratar",
+                         "nom_razon_social_contratista","identificacion_del_contratista",
+                         "cuantia_proceso","fecha_de_firma_del_contrato","SECOP I"))
+
+    # ── DS3: SECOP Integrado (rpmr-utcd) — campo municipio ──
+    print("  [DS3] SECOP Integrado por municipio...")
+    raw3 = buscar_por_municipios_y_termino(
+        url="https://www.datos.gov.co/resource/rpmr-utcd.json",
+        campo_municipio="municipio",
+        campo_objeto="descripcion_del_proceso",
+        campos_select="nombre_entidad,municipio,descripcion_del_proceso,"
+                      "proveedor_adjudicado,nit_proveedor,"
+                      "valor_total_adjudicacion,fecha_de_firma",
+        terminos=["HUEVO","PAE","FAMI","ICBF","EJERCITO"],
+        municipios=todos_munis_ordenados,
+        fuente="SECOP Integrado",
+        campo_fecha="fecha_de_firma"
+    )
+    for c in raw3:
+        todos.append(norm(c, "nombre_entidad","municipio","descripcion_del_proceso",
+                         "proveedor_adjudicado","nit_proveedor",
+                         "valor_total_adjudicacion","fecha_de_firma","Integrado"))
+
+    # ── DS4: FUERZAS MILITARES — sin filtro de municipio ──
+    print("  [DS4] Fuerzas Militares (nacional)...")
+    for t in ["HUEVO","RANCHO","AVICOLA","ALIMENTO TROPA"]:
         datos = api_get(
             "https://www.datos.gov.co/resource/jbjy-vk9h.json",
             {
@@ -255,128 +339,101 @@ def secop_completo():
                           f"OR upper(nombre_entidad) like '%EJÉRCITO%' "
                           f"OR upper(nombre_entidad) like '%ALFM%' "
                           f"OR upper(nombre_entidad) like '%BATALLON%' "
-                          f"OR upper(nombre_entidad) like '%BRIGADA%')",
+                          f"OR upper(nombre_entidad) like '%LOGISTICA%')",
                 "$order": "fecha_de_firma DESC",
-                "$limit": "15",
+                "$limit": "20",
                 "$select": "nombre_entidad,ciudad,descripcion_del_proceso,"
                            "proveedor_adjudicado,documento_proveedor,"
                            "valor_del_contrato,fecha_de_firma"
-            },
-            f"FFMM '{t}'"
+            }, f"FFMM '{t}'"
         )
-        todos_raw.extend(normalizar(
-            datos,
-            ("nombre_entidad","ciudad","descripcion_del_proceso",
-             "proveedor_adjudicado","documento_proveedor",
-             "valor_del_contrato","fecha_de_firma"),
-            "FUERZAS MILITARES"
-        ))
+        for c in datos:
+            todos.append(norm(c, "nombre_entidad","ciudad","descripcion_del_proceso",
+                             "proveedor_adjudicado","documento_proveedor",
+                             "valor_del_contrato","fecha_de_firma","Fuerzas Militares"))
         time.sleep(1)
 
-    # ── DS6: Buscar específicamente "Dando Pasos de Vida" ──
-    print("  [DS6] Buscando Fundacion Dando Pasos de Vida...")
-    for ds_url in [
-        "https://www.datos.gov.co/resource/jbjy-vk9h.json",
-        "https://www.datos.gov.co/resource/xvdy-vvsk.json",
-        "https://www.datos.gov.co/resource/rpmr-utcd.json"
-    ]:
-        for campo_prov in ["proveedor_adjudicado","nombre_del_proveedor"]:
-            datos = api_get(ds_url, {
-                "$where": f"upper({campo_prov}) like '%DANDO PASOS%'",
-                "$order": "fecha_de_firma DESC" if "jbjy" in ds_url else "fecha_adjudicacion DESC",
-                "$limit": "20"
-            }, f"Dando Pasos ({campo_prov[:15]})")
-            if datos:
-                # Detectar campos disponibles
-                primer = datos[0]
-                ent  = "nombre_entidad"
-                mun  = "ciudad" if "ciudad" in primer else "municipio"
-                obj  = "descripcion_del_proceso" if "descripcion_del_proceso" in primer else "descripcion_proceso"
-                prov = campo_prov
-                nit  = "documento_proveedor" if "documento_proveedor" in primer else "nit_del_proveedor"
-                val  = "valor_del_contrato" if "valor_del_contrato" in primer else "valor_contrato"
-                fech = "fecha_de_firma" if "fecha_de_firma" in primer else "fecha_adjudicacion"
-                todos_raw.extend(normalizar(datos, (ent,mun,obj,prov,nit,val,fech),
-                                            "Dando Pasos de Vida"))
-            time.sleep(1)
+    # ── DS5: Fundación Dando Pasos por NIT ──
+    dando = buscar_dando_pasos()
+    todos.extend(dando)
 
     # ── Deduplicar ──
     vistos = set()
     unicos = []
-    for c in todos_raw:
+    for c in todos:
         clave = f"{c['entidad'][:25]}|{c['proveedor'][:20]}|{c['valor']}"
         if clave not in vistos:
             vistos.add(clave)
             unicos.append(c)
 
-    # ── Ordenar: externos y fundaciones primero ──
-    unicos.sort(key=lambda x: (
-        0 if "EXTERNO" in x["tipo_prov"] else
-        1 if "FUNDACION" in x["tipo_prov"] else
-        2 if "COOPERATIVA" in x["tipo_prov"] else
-        3 if "LOCAL" in x["tipo_prov"] else 4
-    ))
+    # ── Ordenar ──
+    orden = {"FUNDACION DANDO PASOS DE VIDA":0,
+             "INTERMEDIARIO EXTERNO":1,
+             "EXTERNO (verificar)":2,
+             "FUNDACION / COOPERATIVA":3,
+             "PROVEEDOR LOCAL BOYACA":4,
+             "NO IDENTIFICADO":5}
+    unicos.sort(key=lambda x: (orden.get(x["tipo_prov"],5), x["municipio"]))
 
-    # ── Estadísticas ──
-    externos   = [c for c in unicos if "EXTERNO"   in c["tipo_prov"]]
-    fundas     = [c for c in unicos if "FUNDACION" in c["tipo_prov"]]
-    locales    = [c for c in unicos if "LOCAL"     in c["tipo_prov"]]
-    icbf_l     = [c for c in unicos if "ICBF"      in c["categoria"] or "HOGAR" in c["categoria"]]
-    pae_l      = [c for c in unicos if "PAE"       in c["categoria"]]
-    militar_l  = [c for c in unicos if "MILITAR"   in c["categoria"]]
-    dando      = [c for c in unicos if "DANDO PASOS" in c["proveedor"].upper()]
+    # ── Stats ──
+    dando_f  = [c for c in unicos if "DANDO PASOS" in c["tipo_prov"]]
+    externos = [c for c in unicos if c["tipo_prov"] in
+                ("INTERMEDIARIO EXTERNO","EXTERNO (verificar)")]
+    locales  = [c for c in unicos if "LOCAL" in c["tipo_prov"]]
+    icbf_l   = [c for c in unicos if "ICBF" in c["categoria"] or "HOGAR" in c["categoria"]]
+    pae_l    = [c for c in unicos if "PAE" in c["categoria"]]
+    mil_l    = [c for c in unicos if "MILITAR" in c["categoria"]]
+    ese_l    = [c for c in unicos if "HOSPITAL" in c["categoria"]]
 
-    print(f"\n  ══ RESUMEN SECOP ══")
-    print(f"  Total contratos:               {len(unicos)}")
-    print(f"  Externos (atacar):             {len(externos)}")
-    print(f"  Fundaciones / cooperativas:    {len(fundas)}")
-    print(f"  Locales Boyaca (competencia):  {len(locales)}")
-    print(f"  ICBF / FAMI / Materno:         {len(icbf_l)}")
-    print(f"  PAE escolar:                   {len(pae_l)}")
-    print(f"  Fuerzas Militares:             {len(militar_l)}")
-    print(f"  Fundacion Dando Pasos:         {len(dando)}")
+    # Municipios únicos encontrados
+    munis_encontrados = set(c["municipio"] for c in unicos if c["municipio"] != "N/A")
+
+    print(f"\n  ══ RESUMEN FINAL ══")
+    print(f"  Municipios de Boyacá con datos:   {len(munis_encontrados)}")
+    print(f"  Total contratos:                   {len(unicos)}")
+    print(f"  Fundacion Dando Pasos:             {len(dando_f)}")
+    print(f"  Externos (atacar):                 {len(externos)}")
+    print(f"  Proveedores locales:               {len(locales)}")
+    print(f"  ICBF / FAMI / Materno:             {len(icbf_l)}")
+    print(f"  PAE escolar:                       {len(pae_l)}")
+    print(f"  Hospitales / ESE:                  {len(ese_l)}")
+    print(f"  Fuerzas Militares:                 {len(mil_l)}")
 
     return unicos
 
 
 # ═══════════════════════════════════════════════════════
-# MÓDULO EXCEL — 5 ARCHIVOS
+# EXCEL — 6 ARCHIVOS
 # ═══════════════════════════════════════════════════════
 
 def guardar_excels(contratos, fecha):
-    if not contratos:
-        print("  Sin datos para exportar")
-        return
-
     campos = ["fuente","entidad","municipio","objeto","categoria",
               "proveedor","nit_prov","tipo_prov","valor","fecha"]
-
     archivos = {
-        f"reportes/1_TODOS_los_contratos_{fecha}.csv":           contratos,
-        f"reportes/2_ATACAR_intermediarios_externos_{fecha}.csv":
-            [c for c in contratos if "EXTERNO"   in c["tipo_prov"]],
-        f"reportes/3_ICBF_FAMI_materno_infantil_{fecha}.csv":
-            [c for c in contratos if "ICBF" in c["categoria"] or "HOGAR" in c["categoria"]],
-        f"reportes/4_PAE_escolar_{fecha}.csv":
+        f"1_TODOS_contratos_{fecha}.csv":          contratos,
+        f"2_ATACAR_externos_{fecha}.csv":
+            [c for c in contratos if c["tipo_prov"] in
+             ("INTERMEDIARIO EXTERNO","EXTERNO (verificar)")],
+        f"3_ICBF_FAMI_materno_{fecha}.csv":
+            [c for c in contratos if "ICBF" in c["categoria"]
+             or "HOGAR" in c["categoria"]],
+        f"4_PAE_escolar_{fecha}.csv":
             [c for c in contratos if "PAE" in c["categoria"]],
-        f"reportes/5_FUERZAS_MILITARES_{fecha}.csv":
+        f"5_FUERZAS_MILITARES_{fecha}.csv":
             [c for c in contratos if "MILITAR" in c["categoria"]],
+        f"6_DANDO_PASOS_{fecha}.csv":
+            [c for c in contratos if "DANDO PASOS" in c["tipo_prov"]],
     }
-
-    # Archivo especial: Fundacion Dando Pasos de Vida
-    dando = [c for c in contratos if "DANDO PASOS" in c["proveedor"].upper()]
-    if dando:
-        archivos[f"reportes/6_Fundacion_Dando_Pasos_TODOS_municipios_{fecha}.csv"] = dando
-
-    for ruta, datos in archivos.items():
-        if datos:
-            with open(ruta, "w", newline="", encoding="utf-8-sig") as f:
-                w = csv.DictWriter(f, fieldnames=campos, extrasaction="ignore")
-                w.writeheader()
+    print("\nGenerando Excel/CSV...")
+    for nombre, datos in archivos.items():
+        ruta = f"reportes/{nombre}"
+        with open(ruta, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.DictWriter(f, fieldnames=campos, extrasaction="ignore")
+            w.writeheader()
+            if datos:
                 w.writerows(datos)
-            print(f"  ✓ {ruta.split('/')[-1]}  ({len(datos)} filas)")
-        else:
-            print(f"  — Sin datos: {ruta.split('/')[-1]}")
+        estado = f"{len(datos)} filas" if datos else "sin datos esta semana"
+        print(f"  {'✓' if datos else '—'} {nombre} ({estado})")
 
 
 # ═══════════════════════════════════════════════════════
@@ -386,261 +443,185 @@ def guardar_excels(contratos, fecha):
 def main():
     fecha = date.today().isoformat()
     inicio = datetime.now()
+    sep = "=" * 60
+    lin = "─" * 50
 
-    print("=" * 60)
+    print(sep)
     print(f"  AGENTE AVICOLA SIACHOQUE - {fecha}")
-    print("=" * 60)
+    print(sep)
 
-    # 1. SECOP completo
-    contratos = secop_completo()
-
-    externos  = [c for c in contratos if "EXTERNO"   in c["tipo_prov"]]
-    fundas    = [c for c in contratos if "FUNDACION" in c["tipo_prov"]]
-    locales   = [c for c in contratos if "LOCAL"     in c["tipo_prov"]]
-    icbf_l    = [c for c in contratos if "ICBF"      in c["categoria"] or "HOGAR" in c["categoria"]]
-    pae_l     = [c for c in contratos if "PAE"       in c["categoria"]]
-    militar_l = [c for c in contratos if "MILITAR"   in c["categoria"]]
-    dando     = [c for c in contratos if "DANDO PASOS" in c["proveedor"].upper()]
-
-    # Guardar Excels inmediatamente
-    print("\nGenerando archivos Excel...")
+    contratos = secop_123_municipios()
     guardar_excels(contratos, fecha)
 
+    dando_f  = [c for c in contratos if "DANDO PASOS" in c["tipo_prov"]]
+    externos = [c for c in contratos if c["tipo_prov"] in
+                ("INTERMEDIARIO EXTERNO","EXTERNO (verificar)")]
+    locales  = [c for c in contratos if "LOCAL" in c["tipo_prov"]]
+    icbf_l   = [c for c in contratos if "ICBF" in c["categoria"] or "HOGAR" in c["categoria"]]
+    pae_l    = [c for c in contratos if "PAE" in c["categoria"]]
+    mil_l    = [c for c in contratos if "MILITAR" in c["categoria"]]
+    ese_l    = [c for c in contratos if "HOSPITAL" in c["categoria"]]
+    munis    = set(c["municipio"] for c in contratos if c["municipio"] != "N/A")
+
     # 2. Convocatorias
-    print("\n[2/5] Buscando convocatorias abiertas...")
+    print("\n[2/5] Convocatorias...")
     time.sleep(12)
     convocatorias = claude_buscar(f"""
-Eres agente comercial para avicultor de Siachoque, Boyaca (500-2000 aves ponedoras).
+Eres agente para avicultor de Siachoque, Boyaca (500-2000 aves).
 Busca HOY {date.today().strftime('%d/%m/%Y')} convocatorias abiertas en:
-1. PAE Boyaca: alimenteengrande.boyaca.gov.co
-2. ICBF Regional Boyaca: icbf.gov.co (FAMI, hogares comunitarios, CDI)
-3. ADR ruedas de negocios avicolas: adr.gov.co/convocatorias
-4. ALFM Fuerzas Militares: agencialogistica.gov.co
-5. Gobernacion Boyaca: boyaca.gov.co
-
-Para cada convocatoria: entidad, objeto, fecha cierre, como aplicar.
+1. alimenteengrande.boyaca.gov.co (PAE Boyaca)
+2. icbf.gov.co Regional Boyaca (FAMI, hogares, CDI)
+3. adr.gov.co/convocatorias (ruedas de negocios avicolas)
+4. agencialogistica.gov.co (ALFM Fuerzas Militares)
+5. boyaca.gov.co (pequenos productores 2026)
+Para cada una: entidad, fecha cierre, como aplicar.
 Clasifica: URGENTE / PROXIMA / FUTURA.
 """)
 
-    # 3. Programas ICBF y militares en zona
-    print("\n[3/5] Programas ICBF y Fuerzas Militares en zona...")
+    # 3. Programas ICBF y militares
+    print("\n[3/5] Programas ICBF y Militares...")
     time.sleep(18)
     icbf_militar = claude_buscar(f"""
-Busca en Siachoque, Soraca, Toca, Chivata y Tunja, Boyaca en 2026:
-
-ICBF:
-- Hogares FAMI activos (madres lactantes y gestantes)
-- Hogares Comunitarios de Bienestar (HCB) 
-- CDI Centros de Desarrollo Infantil
-- Operadores que los ejecutan y si incluyen huevos en la racion
-
-FUERZAS MILITARES:
-- Batallon de Infanteria No. 1 Tarqui en Tunja
-- Brigada No. 5 Tunja
-- Agencia Logistica Fuerzas Militares ALFM — suministro alimentos
-- Como registrarse como proveedor de huevos para el Ejercito
-
-Contactos: ICBF Tunja (608)7422929 — ALFM 018000126537
+Busca en Siachoque, Soraca, Toca, Chivata, Tunja en 2026:
+ICBF: Hogares FAMI, HCB, CDI — operadores, beneficiarios, si incluyen huevos.
+FUERZAS MILITARES: Batallon Tarqui Tunja, Brigada, ALFM —
+como registrarse proveedor huevos via Bolsa Mercantil (bolsamercantil.com.co)
+o directamente ALFM 018000126537.
+ICBF Tunja: (608) 7422929
 """)
 
-    # 4. Precio semanal
+    # 4. Precio
     print("\n[4/5] Precio FENAVI...")
     time.sleep(18)
     precio = claude_buscar(f"""
-Precio cubeta 30 huevos Colombia semana {date.today().strftime('%d/%m/%Y')}:
-1. Precio FENAVI nacional
-2. Precio plaza Tunja SIPSA-DANE
-Compara con $11.500 productor Siachoque. Maximo 5 lineas.
+Precio cubeta 30 huevos Colombia {date.today().strftime('%d/%m/%Y')}:
+FENAVI nacional y Tunja SIPSA-DANE.
+Compara con $11.500 Siachoque. Maximo 5 lineas.
 """)
 
-    # 5. Resumen ejecutivo con toda la inteligencia
-    print("\n[5/5] Generando resumen ejecutivo...")
+    # 5. Resumen
+    print("\n[5/5] Resumen ejecutivo...")
     time.sleep(18)
 
-    # Preparar contexto rico para el resumen
-    txt_ext = "\n".join(
-        f"  {c['municipio']:15} | {c['entidad'][:38]} | proveedor: {c['proveedor'][:30]} | ${c['valor']}"
-        for c in externos[:8]
-    ) or "  No identificados aun"
-
     txt_dando = "\n".join(
-        f"  {c['municipio']:15} | {c['entidad'][:38]} | {c['categoria']} | ${c['valor']} | {c['fecha']}"
-        for c in dando[:10]
-    ) or "  No encontrada en SECOP con ese nombre exacto — verificar manualmente"
+        f"  {c['municipio']:18} | {c['entidad'][:40]} | {c['categoria']} | ${c['valor']} | {c['fecha']}"
+        for c in dando_f
+    ) or f"  Buscada por NIT {NIT_DANDO_PASOS} — 0 contratos directos.\n  Puede estar operando como subcontratista. Verificar en SECOP buscando NIT {NIT_DANDO_PASOS}"
 
-    txt_icbf = "\n".join(
-        f"  {c['municipio']:15} | {c['entidad'][:38]} | {c['categoria']} | ${c['valor']}"
-        for c in icbf_l[:6]
-    ) or "  Sin contratos ICBF encontrados"
-
-    txt_militar = "\n".join(
-        f"  {c['municipio']:15} | {c['entidad'][:38]} | ${c['valor']}"
-        for c in militar_l[:5]
-    ) or "  Sin contratos militares encontrados"
+    txt_ext = "\n".join(
+        f"  {c['municipio']:18} | {c['entidad'][:35]} | {c['proveedor'][:28]} | ${c['valor']}"
+        for c in externos[:10]
+    ) or "  Sin externos identificados esta semana"
 
     resumen = claude_buscar(f"""
-Eres asesor de avicultor campesino de Siachoque, Boyaca, 500-2000 aves ponedoras.
+Eres asesor de avicultor de Siachoque, Boyaca, 500-2000 aves.
 Hoy: {date.today().strftime('%d/%m/%Y')}
 
-INTELIGENCIA SECOP RECOPILADA HOY:
+COBERTURA: Se consultaron {len(munis)} de los 123 municipios de Boyaca.
+Total contratos encontrados: {len(contratos)}
 
-Contratos totales encontrados en Boyaca: {len(contratos)}
-
-FUNDACION DANDO PASOS DE VIDA — en cuantos municipios opera ({len(dando)} contratos):
+FUNDACION DANDO PASOS (NIT {NIT_DANDO_PASOS}) — {len(dando_f)} contratos:
 {txt_dando}
 
-INTERMEDIARIOS EXTERNOS que puedes desplazar con Ley 2046 ({len(externos)}):
+EXTERNOS QUE PUEDES DESPLAZAR ({len(externos)} casos):
 {txt_ext}
 
-CONTRATOS ICBF / FAMI / Materno Infantil ({len(icbf_l)}):
-{txt_icbf}
+ICBF/FAMI: {len(icbf_l)} contratos | PAE: {len(pae_l)} | ESE: {len(ese_l)} | Militares: {len(mil_l)}
 
-CONTRATOS FUERZAS MILITARES ({len(militar_l)}):
-{txt_militar}
+PRECIO: {precio[:120]}
+CONVOCATORIAS: {convocatorias[:300]}
 
-PROGRAMAS ICBF Y MILITARES EN ZONA:
-{icbf_militar[:500]}
+CONTACTOS:
+ESE Siachoque 7319093 | Alcaldia Siachoque 7404476
+ESE Soraca 7404270 | ESE Tunja 311-2169007
+ICBF Tunja (608)7422929 | ALFM 018000126537 | PAE 7420150 Ext.2367
 
-PRECIO: {precio[:150]}
-CONVOCATORIAS: {convocatorias[:350]}
-
-CONTACTOS ESTABLECIDOS:
-- ESE Siachoque: 7319093 (Heidy Johana Correa)
-- Alcaldia Siachoque: 7404476 (Jairo Grijalba)
-- ESE Soraca: 7404270 (Maricela Guerrero)
-- ESE Tunja: 311 2169007
-- ICBF Tunja: (608) 7422929
-- ALFM Ejercito: 018000126537
-- PAE Boyaca: 7420150 Ext. 2367
-
-Con base en los municipios donde opera Fundacion Dando Pasos de Vida
-y los intermediarios externos identificados, dame las 3 ACCIONES MAS 
-URGENTES esta semana para comenzar a desplazarlos como proveedor local.
-Para cada accion: municipio especifico, entidad, telefono, que decir.
+Dame las 3 ACCIONES MAS URGENTES esta semana.
+Para cada accion: municipio, entidad, telefono, que decir exactamente.
 Maximo 300 palabras. Solo texto plano.
 """)
 
     duracion = (datetime.now() - inicio).seconds
 
-    # ── Reporte TXT completo ──
-    sep = "=" * 60
-    lin = "─" * 50
-
     reporte = f"""REPORTE AVICOLA SIACHOQUE
 {fecha}
 {sep}
+COBERTURA: {len(munis)} municipios de Boyaca consultados
 
-ACCIONES URGENTES ESTA SEMANA:
+ACCIONES URGENTES:
 {resumen}
 
 {sep}
-PRECIO HUEVO:
-{precio}
+PRECIO: {precio}
 
 {sep}
-CONVOCATORIAS ABIERTAS (PAE + ICBF + ADR + EJERCITO):
-{convocatorias}
+CONVOCATORIAS: {convocatorias}
 
 {sep}
-PROGRAMAS ICBF Y FUERZAS MILITARES EN TU ZONA:
-{icbf_militar}
+ICBF Y MILITARES EN TU ZONA: {icbf_militar}
 
 {sep}
-RESUMEN COMPETIDORES SECOP
-Total contratos:                    {len(contratos)}
-Intermediarios externos (atacar):   {len(externos)}
-Fundaciones / cooperativas:         {len(fundas)}
-Proveedores locales Boyaca:         {len(locales)}
-Contratos ICBF / FAMI:             {len(icbf_l)}
-Contratos PAE escolar:             {len(pae_l)}
-Contratos Fuerzas Militares:       {len(militar_l)}
-Fundacion Dando Pasos de Vida:     {len(dando)} municipios
+RESUMEN SECOP — {len(munis)} MUNICIPIOS DE BOYACA
+Total contratos:              {len(contratos)}
+Fundacion Dando Pasos:        {len(dando_f)} contratos
+Externos (atacar):            {len(externos)}
+Proveedores locales:          {len(locales)}
+ICBF / FAMI:                 {len(icbf_l)}
+PAE escolar:                  {len(pae_l)}
+Hospitales / ESE:             {len(ese_l)}
+Fuerzas Militares:            {len(mil_l)}
 
-ARCHIVOS EXCEL GENERADOS:
-  1_TODOS_los_contratos_{fecha}.csv
-  2_ATACAR_intermediarios_externos_{fecha}.csv
-  3_ICBF_FAMI_materno_infantil_{fecha}.csv
-  4_PAE_escolar_{fecha}.csv
-  5_FUERZAS_MILITARES_{fecha}.csv
-  6_Fundacion_Dando_Pasos_TODOS_municipios_{fecha}.csv (si encontro datos)
+EXCELS ADJUNTOS:
+  1_TODOS_contratos — {len(contratos)} filas
+  2_ATACAR_externos — {len(externos)} filas
+  3_ICBF_FAMI_materno — {len(icbf_l)} filas
+  4_PAE_escolar — {len(pae_l)} filas
+  5_FUERZAS_MILITARES — {len(mil_l)} filas
+  6_DANDO_PASOS — {len(dando_f)} filas
 {sep}
 
-FUNDACION DANDO PASOS DE VIDA — municipios donde opera:
+FUNDACION DANDO PASOS DE VIDA (NIT {NIT_DANDO_PASOS}):
 """
-    for c in dando:
-        reporte += f"""
-  Municipio:  {c['municipio']}
-  Entidad:    {c['entidad']}
-  Programa:   {c['categoria']}
-  Objeto:     {c['objeto'][:90]}
-  Valor:      ${c['valor']}
-  Fecha:      {c['fecha']}
-  {lin}"""
+    for c in dando_f:
+        reporte += f"\n  {c['municipio']} | {c['entidad']} | {c['categoria']} | ${c['valor']} | {c['fecha']}\n  {lin}"
+    if not dando_f:
+        reporte += f"\n  0 contratos directos con NIT {NIT_DANDO_PASOS}\n"
+        reporte += "  Puede operar como subcontratista de otro operador mayor.\n"
 
-    if not dando:
-        reporte += "\n  No encontrada con nombre exacto — verificar en SECOP buscando 'DANDO PASOS'\n"
+    reporte += f"\n{sep}\nEXTERNOS POR MUNICIPIO:\n"
+    for c in externos[:20]:
+        reporte += f"\n  {c['municipio']:18} | {c['entidad'][:38]}\n  Proveedor: {c['proveedor']} | NIT: {c['nit_prov']} | ${c['valor']}\n  {lin}"
 
-    reporte += f"\n{sep}\nINTERMEDIARIOS EXTERNOS — ATACAR YA:\n"
-    for c in externos[:12]:
-        reporte += f"""
-  Municipio:  {c['municipio']}
-  Entidad:    {c['entidad']}
-  Programa:   {c['categoria']}
-  Proveedor:  {c['proveedor']}  [{c['tipo_prov']}]
-  NIT:        {c['nit_prov']}
-  Valor:      ${c['valor']}
-  Fecha:      {c['fecha']}
-  {lin}"""
+    reporte += f"\n{sep}\nICBF / FAMI / MATERNO:\n"
+    for c in icbf_l[:12]:
+        reporte += f"\n  {c['municipio']:18} | {c['entidad'][:38]}\n  {c['categoria']} | {c['proveedor']} | ${c['valor']}\n  {lin}"
 
-    reporte += f"\n{sep}\nCONTRATOS ICBF / FAMI / MATERNO INFANTIL:\n"
-    for c in icbf_l[:10]:
-        reporte += f"""
-  Municipio:  {c['municipio']}
-  Entidad:    {c['entidad']}
-  Programa:   {c['categoria']}
-  Proveedor:  {c['proveedor']}  [{c['tipo_prov']}]
-  Valor:      ${c['valor']}
-  {lin}"""
+    reporte += f"\n{sep}\nFUERZAS MILITARES:\n"
+    for c in mil_l[:10]:
+        reporte += f"\n  {c['entidad'][:40]} | {c['proveedor']} | ${c['valor']}\n  {lin}"
 
-    reporte += f"\n{sep}\nCONTRATOS FUERZAS MILITARES:\n"
-    for c in militar_l[:8]:
-        reporte += f"""
-  Entidad:    {c['entidad']}
-  Municipio:  {c['municipio']}
-  Proveedor:  {c['proveedor']}
-  Valor:      ${c['valor']}
-  {lin}"""
+    reporte += f"\n{sep}\nPROVEEDORES LOCALES BOYACA:\n"
+    for c in locales[:10]:
+        reporte += f"\n  {c['municipio']:18} | {c['proveedor']} | NIT: {c['nit_prov']} | ${c['valor']}\n  {lin}"
 
-    reporte += f"\n{sep}\nPROVEEDORES LOCALES BOYACA (competencia):\n"
-    for c in locales[:8]:
-        reporte += f"""
-  Municipio:  {c['municipio']}
-  Proveedor:  {c['proveedor']}
-  NIT:        {c['nit_prov']}
-  Entidad:    {c['entidad']}
-  Valor:      ${c['valor']}
-  {lin}"""
+    reporte += f"\n\nGenerado en {duracion}s"
 
-    reporte += f"\n\nGenerado en {duracion} segundos."
-
-    # Guardar
-    with open(f"reportes/reporte_{fecha}.txt", "w", encoding="utf-8") as f:
+    with open(f"reportes/reporte_{fecha}.txt","w",encoding="utf-8") as f:
         f.write(reporte)
-    with open(f"reportes/contratos_{fecha}.json", "w", encoding="utf-8") as f:
+    with open(f"reportes/contratos_{fecha}.json","w",encoding="utf-8") as f:
         json.dump(contratos, f, ensure_ascii=False, indent=2)
 
-    # Consola
-    print()
-    print(sep)
+    print(f"\n{sep}")
     print("ACCIONES URGENTES:")
     print(resumen)
-    print()
-    print(f"  Contratos SECOP:      {len(contratos)}")
-    print(f"  Dando Pasos de Vida:  {len(dando)} municipios encontrados")
-    print(f"  Externos (atacar):    {len(externos)}")
-    print(f"  ICBF / FAMI:         {len(icbf_l)}")
-    print(f"  Militares:            {len(militar_l)}")
-    print(f"  Duracion:             {duracion}s")
+    print(f"\n  Municipios cubiertos:  {len(munis)}/123")
+    print(f"  Total contratos:       {len(contratos)}")
+    print(f"  Dando Pasos:           {len(dando_f)}")
+    print(f"  Externos (atacar):     {len(externos)}")
+    print(f"  ICBF/FAMI:            {len(icbf_l)}")
+    print(f"  PAE:                   {len(pae_l)}")
+    print(f"  Militares:             {len(mil_l)}")
+    print(f"  Duracion:              {duracion}s")
     print(sep)
 
 
