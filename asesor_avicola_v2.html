@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asesor Avícola — Siachoque</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#0c1209;color:#dff0d2;font-family:system-ui,sans-serif;font-size:14px}
+.root{display:flex;flex-direction:column;height:100vh;max-width:700px;margin:0 auto}
+
+.hdr{background:#131a0f;border-bottom:1px solid rgba(127,255,58,.2);padding:0 16px;height:50px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.hdot{width:8px;height:8px;border-radius:50%;background:#7fff3a;animation:p 2s infinite}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.2}}
+.htitle{font-size:14px;font-weight:600;color:#7fff3a}
+.hbadge{margin-left:auto;font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid rgba(127,255,58,.3);color:#7fff3a;background:rgba(127,255,58,.07)}
+.hbadge.err{border-color:rgba(255,79,79,.4);color:#ff6b6b;background:rgba(255,79,79,.07)}
+.hbadge.warn{border-color:rgba(255,184,48,.4);color:#ffb830;background:rgba(255,184,48,.07)}
+
+.sbar{background:#0f1a0b;border-bottom:1px solid rgba(127,255,58,.08);padding:5px 16px;display:flex;align-items:center;gap:7px;flex-shrink:0;font-size:11px}
+.sdot{width:5px;height:5px;border-radius:50%;background:#ffb830}
+.sdot.g{background:#7fff3a}.sdot.r{background:#ff4f4f}
+.stxt{color:rgba(127,255,58,.6)}
+.stm{margin-left:auto;color:rgba(127,255,58,.3)}
+
+.mbar{border-bottom:1px solid rgba(127,255,58,.08);padding:8px 16px;display:flex;gap:6px;flex-shrink:0;overflow-x:auto;scrollbar-width:none}
+.mbar::-webkit-scrollbar{display:none}
+.mc{background:#131a0f;border:1px solid rgba(127,255,58,.12);border-radius:8px;padding:6px 12px;min-width:85px;flex-shrink:0}
+.mv{font-size:20px;font-weight:600;color:#7fff3a;line-height:1}
+.mv.a{color:#ffb830}.mv.r{color:#ff4f4f}.mv.t{color:#3affd4}
+.ml{font-size:9px;color:rgba(127,255,58,.45);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+
+.msgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:rgba(127,255,58,.2) transparent}
+.row{display:flex;gap:9px;align-items:flex-start;animation:fu .2s ease}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.row.u{flex-direction:row-reverse}
+.av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;margin-top:1px}
+.av.ai{background:rgba(127,255,58,.15);border:1px solid rgba(127,255,58,.3);color:#7fff3a}
+.av.hu{background:rgba(58,255,212,.1);border:1px solid rgba(58,255,212,.25);color:#3affd4}
+.bub{padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.65;max-width:80%}
+.bub.ai{background:#131a0f;border:1px solid rgba(127,255,58,.12);border-top-left-radius:3px}
+.bub.hu{background:rgba(58,255,212,.07);border:1px solid rgba(58,255,212,.13);border-top-right-radius:3px}
+.bub b,.bub strong{color:#7fff3a;font-weight:500}
+.bub .ur{color:#ff6b6b;font-weight:600}
+.bub .pr{color:#ffb830}
+.bub a{color:#3affd4}
+
+.dots{display:flex;gap:4px;align-items:center}
+.dots span{width:6px;height:6px;border-radius:50%;background:#7fff3a;animation:dd .9s infinite}
+.dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
+@keyframes dd{0%,100%{opacity:.2;transform:scale(.7)}50%{opacity:1;transform:scale(1)}}
+
+.sugs{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.sug{background:#0f1a0b;border:1px solid rgba(127,255,58,.18);border-radius:99px;padding:5px 12px;font-size:11px;color:rgba(127,255,58,.6);cursor:pointer;transition:all .12s}
+.sug:hover{border-color:rgba(127,255,58,.5);color:#7fff3a;background:rgba(127,255,58,.06)}
+
+.inp-area{background:#131a0f;border-top:1px solid rgba(127,255,58,.15);padding:12px 16px;flex-shrink:0}
+.krow{display:flex;align-items:center;gap:8px;margin-bottom:10px;background:rgba(255,184,48,.06);border:1px solid rgba(255,184,48,.25);border-radius:8px;padding:9px 12px}
+.klbl{font-size:11px;color:#ffb830;white-space:nowrap;font-weight:500}
+.kinp{flex:1;background:#0f1a0b;border:1px solid rgba(255,184,48,.3);border-radius:7px;padding:6px 10px;font-size:12px;font-family:monospace;color:#dff0d2;outline:none;min-width:0}
+.kinp:focus{border-color:rgba(255,184,48,.6)}
+.kbtn{background:rgba(127,255,58,.15);border:1px solid rgba(127,255,58,.4);border-radius:7px;padding:6px 14px;font-size:12px;cursor:pointer;color:#7fff3a;white-space:nowrap;font-weight:500;transition:all .12s}
+.kbtn:hover{background:rgba(127,255,58,.25)}
+.irow{display:flex;gap:8px;align-items:flex-end}
+textarea{flex:1;background:#0f1a0b;border:1px solid rgba(127,255,58,.2);border-radius:9px;padding:9px 12px;color:#dff0d2;font-size:13px;resize:none;outline:none;min-height:42px;max-height:110px;line-height:1.5;font-family:system-ui,sans-serif}
+textarea:focus{border-color:rgba(127,255,58,.45)}
+textarea::placeholder{color:rgba(127,255,58,.3)}
+textarea:disabled{opacity:.4}
+.sb{width:42px;height:42px;border-radius:9px;background:rgba(127,255,58,.2);border:1px solid rgba(127,255,58,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#7fff3a;font-size:15px;transition:all .12s}
+.sb:hover{background:rgba(127,255,58,.35)}
+.sb:disabled{opacity:.3;cursor:not-allowed}
+.hint{font-size:10px;color:rgba(127,255,58,.35);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="root">
+
+  <div class="hdr">
+    <div class="hdot"></div>
+    <div class="htitle">Asesor avícola — Siachoque</div>
+    <div class="hbadge warn" id="hbadge">iniciando...</div>
+  </div>
+
+  <div class="sbar">
+    <div class="sdot" id="sdot"></div>
+    <div class="stxt" id="stxt">Iniciando...</div>
+    <div class="stm" id="stm"></div>
+  </div>
+
+  <div class="mbar" id="mbar" style="display:none">
+    <div class="mc"><div class="mv" id="m1">—</div><div class="ml">Contratos</div></div>
+    <div class="mc"><div class="mv a" id="m2">—</div><div class="ml">Externos</div></div>
+    <div class="mc"><div class="mv t" id="m3">—</div><div class="ml">ICBF/FAMI</div></div>
+    <div class="mc"><div class="mv t" id="m4">—</div><div class="ml">PAE</div></div>
+    <div class="mc"><div class="mv r" id="m5">—</div><div class="ml">FUPAVID</div></div>
+    <div class="mc"><div class="mv" id="m6">—</div><div class="ml">Precio/cub</div></div>
+  </div>
+
+  <div class="msgs" id="msgs"></div>
+
+  <div class="inp-area">
+    <div class="krow" id="krow" style="display:none">
+      <span class="klbl">API key Anthropic:</span>
+      <input class="kinp" id="kinp" type="password" placeholder="sk-ant-api03-..." />
+      <button class="kbtn" onclick="guardarKey()">Activar</button>
+    </div>
+    <div class="irow">
+      <textarea id="inp" placeholder="Pregunta sobre contratos, precios, FUPAVID..." disabled
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviar()}"
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,110)+'px'"></textarea>
+      <button class="sb" id="sb" onclick="enviar()" disabled>➤</button>
+    </div>
+    <div class="hint" id="hint">Cargando...</div>
+  </div>
+
+</div>
+<script>
+const GH='iagestion2026';
+const AURL='https://api.anthropic.com/v1/messages';
+const CTX=`Eres el asesor personal de un avicultor campesino de Siachoque, Boyacá, Colombia.
+500-2000 gallinas ponedoras. Objetivo: vender huevos frescos a entidades públicas.
+
+DATOS PERMANENTES:
+- Operador PAE Siachoque: FUPAVID (NIT 901432698), contrato $1.180M vigente 2026
+- FUPAVID opera en 10 municipios: Siachoque, Soracá, Oicatá, Sora, Ramiriquí, San José de Pare, Ciénega, Rondón, Sutamarchán, Gachantivá — total $17.078M
+- Precio óptimo FUPAVID: $11.000/cubeta entrada, $11.500 sostenible, mínimo $10.500
+- Precio Corabastos 2026: ~$398/unidad = ~$11.940/cubeta
+- UT NUTRITUNJA OG 2026 = operador PAE Tunja ($11.510M)
+- ALIMENTOS EDIL SAS = proveedor Fuerzas Militares ($8.700M)
+- Ley 2046: FUPAVID obligada a comprar 30% de alimentos a pequeños productores locales
+- ESE Siachoque: 7319093 (Heidy Johana Correa)
+- Alcaldía Siachoque: 7404476 (Jairo Grijalba)
+- ESE Soracá: 7404270 (Maricela Guerrero)
+- ESE Tunja: 311-2169007
+- ICBF Tunja: (608)7422929
+- ALFM Ejército: 018000126537
+- PAE Boyacá: 7420150 Ext.2367
+- Documentos en trámite: RUT CIIU 0145, certificado pequeño productor
+Responde en español. Sé directo y práctico. Con acciones incluye teléfonos.`;
+
+let reporte='',fechaR='',hist=[],busy=false;
+let apiKey=localStorage.getItem('avicola_k')||'';
+
+function ss(c,t){
+  document.getElementById('sdot').className='sdot'+(c?' '+c:'');
+  document.getElementById('stxt').textContent=t;
+  document.getElementById('stm').textContent=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+}
+function badge(t,tipo){
+  const el=document.getElementById('hbadge');
+  el.textContent=t;
+  el.className='hbadge'+(tipo?' '+tipo:'');
+}
+function hint(t){document.getElementById('hint').textContent=t}
+function enableChat(){
+  document.getElementById('inp').disabled=false;
+  document.getElementById('sb').disabled=false;
+}
+function showKeyPrompt(){
+  document.getElementById('krow').style.display='flex';
+  hint('Ingresa tu API key de Anthropic para activar el asesor');
+  badge('ingresa key','warn');
+}
+
+function guardarKey(){
+  const v=document.getElementById('kinp').value.trim();
+  if(!v.startsWith('sk-ant')){
+    alert('La key debe empezar con sk-ant-\n\nCómo obtenerla:\n1. Ve a console.anthropic.com\n2. Inicia sesión\n3. Clic en "API Keys"\n4. Clic en "Create Key"\n5. Copia el valor');
+    return;
+  }
+  apiKey=v;
+  localStorage.setItem('avicola_k',v);
+  document.getElementById('krow').style.display='none';
+  enableChat();
+  hint('Lista — pregunta lo que necesites');
+  if(reporte){
+    badge(fechaR.slice(-10)||fechaR);
+    analisis(reporte);
+  } else {
+    badge('contexto base');
+    ss('g','Listo — contexto base activo');
+    addAI('Key guardada correctamente. El reporte semanal se publicará automáticamente cada lunes desde GitHub.\n\nMientras tanto puedo responder sobre <b>FUPAVID</b>, <b>precios</b>, <b>municipios</b> y <b>estrategia de ventas</b>.',true);
+  }
+}
+
+function setMetrics(txt){
+  const g=p=>{const m=txt.match(p);return m?m[1]:'—'};
+  document.getElementById('m1').textContent=g(/Total contratos[:\s]+(\d+)/i);
+  document.getElementById('m2').textContent=g(/Externos[^:\n]*:[:\s]+(\d+)/i);
+  document.getElementById('m3').textContent=g(/ICBF[^:\n]*:[:\s]+(\d+)/i);
+  document.getElementById('m4').textContent=g(/PAE escolar[:\s]+(\d+)/i);
+  document.getElementById('m5').textContent=g(/FUPAVID[^:\n]*:[:\s]+(\d+)/i);
+  const pm=txt.match(/\$([\d.,]+)\/cubeta/i)||txt.match(/cubeta[^$\n]*\$([\d.,]+)/i);
+  document.getElementById('m6').textContent=pm?'$'+pm[1].slice(0,7):'—';
+  document.getElementById('mbar').style.display='flex';
+}
+
+async function cargar(){
+  ss('','Buscando reporte en GitHub...');
+  badge('cargando...','warn');
+  try{
+    const ctrl=new AbortController();
+    setTimeout(()=>ctrl.abort(),8000);
+    const r=await fetch(`https://api.github.com/users/${GH}/gists`,
+      {headers:{Accept:'application/vnd.github.v3+json'},signal:ctrl.signal});
+    if(!r.ok) throw new Error('GitHub '+r.status);
+    const lista=await r.json();
+    const g=lista.find(x=>{
+      const d=(x.description||'').toLowerCase();
+      return d.includes('avicola')||d.includes('avícola')||d.includes('siachoque');
+    });
+    if(!g) throw new Error('sin_gist');
+
+    ss('','Leyendo '+(g.description||'reporte')+'...');
+    const ctrl2=new AbortController();
+    setTimeout(()=>ctrl2.abort(),8000);
+    const r2=await fetch('https://api.github.com/gists/'+g.id,{signal:ctrl2.signal});
+    const dat=await r2.json();
+    const files=Object.values(dat.files||{});
+    const txt=files.find(f=>f.filename?.includes('reporte_')&&f.filename?.endsWith('.txt'));
+    const contenido=txt?.content||files[0]?.content||'';
+    if(!contenido) throw new Error('reporte vacío');
+
+    reporte=contenido; fechaR=g.description||g.updated_at?.slice(0,10)||'';
+    setMetrics(contenido);
+    ss('g','Reporte cargado — '+fechaR);
+
+    if(!apiKey){
+      badge('ingresa key','warn');
+      showKeyPrompt();
+      return;
+    }
+    badge(fechaR.slice(-10)||fechaR);
+    enableChat();
+    hint('Reporte listo · Pregunta lo que necesites');
+    await analisis(contenido);
+
+  }catch(e){
+    if(e.message==='sin_gist'){
+      ss('','Sin reporte aún — el agente publica cada lunes');
+    } else {
+      ss('r',e.name==='AbortError'?'Tiempo de espera agotado':'Error: '+e.message);
+    }
+    if(!apiKey){
+      badge('ingresa key','warn');
+      showKeyPrompt();
+      return;
+    }
+    badge('contexto base','warn');
+    enableChat();
+    hint('Contexto base activo — pregunta lo que necesites');
+    addAI('No encontré reporte semanal en GitHub todavía. El agente lo publica automáticamente cada lunes.\n\nPuedo responder sobre <b>FUPAVID</b>, <b>precios</b>, <b>municipios</b> y <b>estrategia</b> con el contexto que tenemos.',true);
+  }
+}
+
+async function analisis(txt){
+  if(!apiKey) return;
+  await claude(`Analiza este reporte avícola y responde con:
+1. Resumen en 2 líneas de lo más importante esta semana
+2. Las 3 acciones más urgentes (con teléfonos y exactamente qué decir)
+3. Precio del mercado vs objetivo $11.000-11.500/cubeta
+4. Estado FUPAVID esta semana
+REPORTE:\n${txt.slice(0,5000)}`,true);
+}
+
+function fmt(t){
+  return t
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/\*(.+?)\*/g,'<i>$1</i>')
+    .replace(/^### (.+)$/gm,'<div style="font-size:12px;font-weight:600;color:#3affd4;margin:8px 0 3px">$1</div>')
+    .replace(/^## (.+)$/gm,'<div style="font-size:13px;font-weight:600;color:#7fff3a;margin:10px 0 4px">$1</div>')
+    .replace(/^# (.+)$/gm,'<div style="font-size:14px;font-weight:600;color:#7fff3a;margin:12px 0 5px">$1</div>')
+    .replace(/URGENTE/g,'<span class="ur">URGENTE</span>')
+    .replace(/PRÓXIMA/g,'<span class="pr">PRÓXIMA</span>')
+    .replace(/`(.+?)`/g,'<code style="background:rgba(127,255,58,.1);padding:1px 5px;border-radius:3px;font-family:monospace;font-size:11px;color:#7fff3a">$1</code>')
+    .replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>');
+}
+
+function addAI(txt,conSugs=false){
+  const c=document.getElementById('msgs');
+  const d=document.createElement('div');
+  d.className='row';
+  const ss2=conSugs?`<div class="sugs">${
+    ['¿Cuál es la oportunidad más urgente?',
+     '¿A qué precio ofrecerle a FUPAVID?',
+     '¿Qué municipios tienen externos?',
+     '¿Hay convocatorias urgentes?',
+     'Compara con la semana anterior']
+    .map(s=>`<button class="sug" onclick="qs(this)">${s}</button>`).join('')
+  }</div>`:'';
+  d.innerHTML=`<div class="av ai">AP</div><div class="bub ai">${fmt(txt)}${ss2}</div>`;
+  c.appendChild(d);
+  c.scrollTop=c.scrollHeight;
+}
+
+function addUser(txt){
+  const c=document.getElementById('msgs');
+  const d=document.createElement('div');
+  d.className='row u';
+  d.innerHTML=`<div class="av hu">YO</div><div class="bub hu">${txt.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>`;
+  c.appendChild(d);
+  c.scrollTop=c.scrollHeight;
+}
+
+function addTyping(){
+  const c=document.getElementById('msgs');
+  const d=document.createElement('div');
+  d.className='row'; d.id='typ';
+  d.innerHTML=`<div class="av ai">AP</div><div class="bub ai"><div class="dots"><span></span><span></span><span></span></div></div>`;
+  c.appendChild(d);
+  c.scrollTop=c.scrollHeight;
+}
+function rmTyping(){const e=document.getElementById('typ');if(e)e.remove();}
+
+async function claude(msg,auto=false){
+  if(!apiKey){showKeyPrompt();return;}
+  if(!auto){addUser(msg);hist.push({role:'user',content:msg});}
+  busy=true;
+  document.getElementById('sb').disabled=true;
+  addTyping();
+  try{
+    const sys=CTX+(reporte?`\n\nREPORTE ACTUAL (${fechaR}):\n${reporte.slice(0,6000)}`:'');
+    const msgs=auto?[{role:'user',content:msg}]:hist.slice(-20);
+    const r=await fetch(AURL,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':apiKey,
+        'anthropic-version':'2023-06-01'
+      },
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1200,
+        system:sys,
+        messages:msgs
+      })
+    });
+    const dat=await r.json();
+    if(!r.ok) throw new Error(dat.error?.message||'HTTP '+r.status);
+    const rep=dat.content.map(b=>b.text||'').join('');
+    rmTyping();
+    addAI(rep,!auto&&hist.length<=2);
+    if(!auto) hist.push({role:'assistant',content:rep});
+  }catch(e){
+    rmTyping();
+    if(e.message.includes('401')||e.message.includes('invalid x-api-key')){
+      apiKey='';
+      localStorage.removeItem('avicola_k');
+      addAI('La API key no es válida o expiró. Ingresa una nueva.');
+      showKeyPrompt();
+    } else {
+      addAI('Error: '+e.message+'\n\nVerifica tu conexión e intenta de nuevo.');
+    }
+  }
+  busy=false;
+  document.getElementById('sb').disabled=false;
+}
+
+async function enviar(){
+  if(busy) return;
+  const el=document.getElementById('inp');
+  const t=el.value.trim();
+  if(!t) return;
+  el.value='';
+  el.style.height='auto';
+  await claude(t);
+}
+
+function qs(btn){
+  document.getElementById('inp').value=btn.textContent;
+  enviar();
+}
+
+cargar();
+</script>
+</body>
+</html>
