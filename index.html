@@ -14,7 +14,6 @@ html,body{height:100%;background:#0c1209;color:#dff0d2;font-family:system-ui,san
 .htitle{font-size:14px;font-weight:600;color:#7fff3a}
 .hbadge{margin-left:auto;font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid rgba(127,255,58,.3);color:#7fff3a;background:rgba(127,255,58,.07)}
 .hbadge.warn{border-color:rgba(255,184,48,.4);color:#ffb830;background:rgba(255,184,48,.07)}
-.hbadge.err{border-color:rgba(255,79,79,.4);color:#ff6b6b;background:rgba(255,79,79,.07)}
 .sbar{background:#0f1a0b;border-bottom:1px solid rgba(127,255,58,.08);padding:5px 16px;display:flex;align-items:center;gap:7px;flex-shrink:0;font-size:11px}
 .sdot{width:5px;height:5px;border-radius:50%;background:#ffb830}
 .sdot.g{background:#7fff3a}.sdot.r{background:#ff4f4f}
@@ -32,7 +31,7 @@ html,body{height:100%;background:#0c1209;color:#dff0d2;font-family:system-ui,san
 .av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;margin-top:1px}
 .av.ai{background:rgba(127,255,58,.15);border:1px solid rgba(127,255,58,.3);color:#7fff3a}
 .av.hu{background:rgba(58,255,212,.1);border:1px solid rgba(58,255,212,.25);color:#3affd4}
-.bub{padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.65;max-width:80%}
+.bub{padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.65;max-width:82%}
 .bub.ai{background:#131a0f;border:1px solid rgba(127,255,58,.12);border-top-left-radius:3px}
 .bub.hu{background:rgba(58,255,212,.07);border:1px solid rgba(58,255,212,.13);border-top-right-radius:3px}
 .bub b,.bub strong{color:#7fff3a;font-weight:500}
@@ -44,14 +43,14 @@ html,body{height:100%;background:#0c1209;color:#dff0d2;font-family:system-ui,san
 @keyframes dd{0%,100%{opacity:.2;transform:scale(.7)}50%{opacity:1;transform:scale(1)}}
 .sugs{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .sug{background:#0f1a0b;border:1px solid rgba(127,255,58,.18);border-radius:99px;padding:5px 12px;font-size:11px;color:rgba(127,255,58,.6);cursor:pointer;transition:all .12s}
-.sug:hover,.sug:active{border-color:rgba(127,255,58,.5);color:#7fff3a;background:rgba(127,255,58,.06)}
+.sug:hover,.sug:active{border-color:rgba(127,255,58,.5);color:#7fff3a}
+.wsearch{display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(58,255,212,.7);margin:4px 0;padding:4px 8px;background:rgba(58,255,212,.05);border-radius:6px;border:1px solid rgba(58,255,212,.15)}
 .inp-area{background:#131a0f;border-top:1px solid rgba(127,255,58,.15);padding:12px 16px;flex-shrink:0}
 .krow{display:flex;align-items:center;gap:8px;margin-bottom:10px;background:rgba(255,184,48,.06);border:1px solid rgba(255,184,48,.25);border-radius:8px;padding:9px 12px}
 .klbl{font-size:11px;color:#ffb830;white-space:nowrap;font-weight:500}
 .kinp{flex:1;background:#0f1a0b;border:1px solid rgba(255,184,48,.3);border-radius:7px;padding:6px 10px;font-size:12px;font-family:monospace;color:#dff0d2;outline:none;min-width:0}
 .kinp:focus{border-color:rgba(255,184,48,.6)}
 .kbtn{background:rgba(127,255,58,.15);border:1px solid rgba(127,255,58,.4);border-radius:7px;padding:6px 14px;font-size:12px;cursor:pointer;color:#7fff3a;white-space:nowrap;font-weight:500}
-.kbtn:hover{background:rgba(127,255,58,.25)}
 .irow{display:flex;gap:8px;align-items:flex-end}
 textarea{flex:1;background:#0f1a0b;border:1px solid rgba(127,255,58,.2);border-radius:9px;padding:9px 12px;color:#dff0d2;font-size:13px;resize:none;outline:none;min-height:42px;max-height:110px;line-height:1.5;font-family:system-ui,sans-serif}
 textarea:focus{border-color:rgba(127,255,58,.45)}
@@ -99,33 +98,36 @@ textarea:disabled{opacity:.4}
   </div>
 </div>
 <script>
-const GH='iagestion2026';
-// Proxy CORS gratuito para llamadas a Anthropic desde el navegador
-const PROXY='https://wispy-smoke-6667.ia-gestion2026.workers.dev';
+const GH     = 'iagestion2026';
+const WORKER = 'https://wispy-smoke-6667.ia-gestion2026.workers.dev';
 
+// Palabras clave que activan búsqueda web en tiempo real
+const WEB_KEYWORDS = ['precio','precio hoy','fenavi','sipsa','mercado','cubeta',
+  'cuánto cuesta','costo','convocatoria','abierta','urgente hoy','esta semana'];
 
-const CTX=`Eres el asesor personal de un avicultor campesino de Siachoque, Boyacá, Colombia.
+const CTX = `Eres el asesor personal de un avicultor campesino de Siachoque, Boyacá, Colombia.
 500-2000 gallinas ponedoras. Objetivo: vender huevos frescos a entidades públicas.
 
-DATOS PERMANENTES:
-- Operador PAE Siachoque: FUPAVID (NIT 901432698), contrato 1.180M vigente 2026
-- FUPAVID opera en 10 municipios: Siachoque, Soracá, Oicatá, Sora, Ramiriquí, San José de Pare, Ciénega, Rondón, Sutamarchán, Gachantivá — total 17.078M
-- Precio óptimo FUPAVID: 11.000/cubeta entrada, 11.500 sostenible, mínimo 10.500
-- Precio Corabastos 2026: 398/unidad = 11.940/cubeta
-- UT NUTRITUNJA OG 2026 = operador PAE Tunja 11.510M
-- ALIMENTOS EDIL SAS = proveedor Fuerzas Militares 8.700M
-- Ley 2046: FUPAVID obligada a comprar 30% de alimentos a pequeños productores locales
-- ESE Siachoque: 7319093 (Heidy Johana Correa)
-- Alcaldía Siachoque: 7404476 (Jairo Grijalba)
-- ESE Soracá: 7404270 (Maricela Guerrero)
-- ESE Tunja: 311-2169007
-- ICBF Tunja: (608)7422929
-- ALFM Ejército: 018000126537
-- PAE Boyacá: 7420150 Ext.2367
-Responde en español. Sé directo y práctico. Con acciones incluye teléfonos.`;
+INSTRUCCIONES CRÍTICAS:
+1. SIEMPRE usa el reporte semanal como fuente principal de información
+2. El reporte contiene contratos REALES de SECOP con proveedores, valores y URLs
+3. Cuando el reporte diga que FUPAVID tiene contratos en X municipio, ESO ES UN HECHO REAL
+4. Los precios del reporte son datos reales extraídos de SECOP
+5. NUNCA digas que no puedes verificar algo que ya está en el reporte
+6. Si el reporte no tiene un dato específico, indícalo claramente
+7. Para precios de mercado actuales tienes acceso a búsqueda web - úsala
 
-let reporte='',fechaR='',hist=[],busy=false;
-let apiKey=localStorage.getItem('avicola_k')||'';
+DATOS BASE SIEMPRE VÁLIDOS:
+- FUPAVID (NIT 901432698) tiene contrato PAE Siachoque $1.180M vigente 2026
+- FUPAVID opera en 10 municipios: Siachoque, Soracá, Oicatá, Sora, Ramiriquí, San José de Pare, Ciénega, Rondón, Sutamarchán, Gachantivá — total $17.078M
+- Precio objetivo: $11.000/cubeta entrada, $11.500 sostenible, mínimo $10.500
+- Ley 2046: FUPAVID obligada a comprar 30% de alimentos a pequeños productores locales
+- ESE Siachoque: 7319093 | Alcaldía: 7404476 | ESE Soracá: 7404270
+- ESE Tunja: 311-2169007 | ICBF Tunja: (608)7422929 | ALFM: 018000126537
+Responde en español. Directo y práctico. Con acciones incluye teléfonos.`;
+
+let reporte='', fechaR='', hist=[], busy=false;
+let apiKey = localStorage.getItem('avicola_k') || '';
 
 function ss(c,t){
   document.getElementById('sdot').className='sdot'+(c?' '+c:'');
@@ -149,21 +151,14 @@ function showKeyPrompt(){
 }
 function guardarKey(){
   const v=document.getElementById('kinp').value.trim();
-  if(!v.startsWith('sk-ant')){
-    alert('La key debe empezar con sk-ant-\n\nObtenerla en: console.anthropic.com → API Keys → Create Key');
-    return;
-  }
+  if(!v.startsWith('sk-ant')){alert('La key debe empezar con sk-ant-');return;}
   apiKey=v;
   localStorage.setItem('avicola_k',v);
   document.getElementById('krow').style.display='none';
   enableChat();
   hint('Lista — pregunta lo que necesites');
   if(reporte){badge(fechaR.slice(-10)||fechaR);analisis(reporte);}
-  else{
-    badge('contexto base');
-    ss('g','Listo');
-    addAI('Key guardada. Puedo responder sobre <b>FUPAVID</b>, <b>precios</b>, <b>municipios</b> y <b>estrategia</b>.',true);
-  }
+  else{badge('contexto base');ss('g','Listo');addAI('Key guardada. Puedo responder sobre <b>FUPAVID</b>, <b>precios actuales</b> (busco en internet), <b>municipios</b> y <b>estrategia</b>.',true);}
 }
 function setMetrics(txt){
   const g=p=>{const m=txt.match(p);return m?m[1]:'—'};
@@ -209,49 +204,64 @@ async function cargar(){
     hint('Reporte listo · Pregunta lo que necesites');
     await analisis(contenido);
   }catch(e){
-    if(e.message==='sin_gist') ss('','Sin reporte aún — corre el agente manualmente');
+    if(e.message==='sin_gist') ss('','Sin reporte aún — el agente publica cada lunes');
     else ss('r',e.name==='AbortError'?'Tiempo agotado':'Error: '+e.message);
     if(!apiKey){badge('ingresa key','warn');showKeyPrompt();return;}
     badge('contexto base','warn');
     enableChat();
-    hint('Contexto base activo');
-    addAI('Sin reporte semanal aún. Puedo responder sobre <b>FUPAVID</b>, <b>precios</b> y <b>estrategia</b>.',true);
+    hint('Contexto base activo — busco precios en internet cuando me preguntas');
+    addAI('Sin reporte semanal aún. Puedo responder sobre <b>FUPAVID</b>, estrategia y buscar <b>precios actuales en internet</b> cuando me preguntes.',true);
   }
 }
+
 async function analisis(txt){
   if(!apiKey) return;
-  await claude(`Analiza este reporte avícola y responde:
-1. Resumen en 2 líneas de lo más importante
-2. Las 3 acciones más urgentes con teléfonos y qué decir exactamente
-3. Precio del mercado vs objetivo $11.000-11.500/cubeta
-4. Estado FUPAVID esta semana
-REPORTE:\n${txt.slice(0,5000)}`,true);
+  // Análisis inicial siempre con web search para precios
+  await claude(`Analiza este reporte avícola del ${fechaR} y responde:
+
+1. **Resumen** — 2 líneas de lo más importante
+2. **3 acciones urgentes** — con teléfonos y qué decir exactamente
+3. **Precio del huevo hoy** — busca en internet el precio FENAVI o Corabastos de esta semana y compara con objetivo $11.000-11.500/cubeta
+4. **FUPAVID** — qué dice el reporte sobre contratos y precios encontrados
+5. **Contratos con URL** — lista los más importantes con sus enlaces
+
+REPORTE COMPLETO:
+${txt.slice(0,6000)}`, true, true);
 }
+
+function needsWebSearch(msg){
+  const m = msg.toLowerCase();
+  return WEB_KEYWORDS.some(k => m.includes(k));
+}
+
 function fmt(t){
   return t
     .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
     .replace(/\*(.+?)\*/g,'<i>$1</i>')
     .replace(/^### (.+)$/gm,'<div style="font-size:12px;font-weight:600;color:#3affd4;margin:8px 0 3px">$1</div>')
     .replace(/^## (.+)$/gm,'<div style="font-size:13px;font-weight:600;color:#7fff3a;margin:10px 0 4px">$1</div>')
+    .replace(/^# (.+)$/gm,'<div style="font-size:14px;font-weight:600;color:#7fff3a;margin:12px 0 5px">$1</div>')
     .replace(/URGENTE/g,'<span style="color:#ff6b6b;font-weight:600">URGENTE</span>')
     .replace(/https?:\/\/[^\s<>"]+/g,url=>`<a href="${url}" target="_blank" style="color:#3affd4">${url.length>45?url.slice(0,45)+'...':url}</a>`)
     .replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>');
 }
-function addAI(txt,conSugs=false){
+
+function addAI(txt, conSugs=false){
   const c=document.getElementById('msgs');
   const d=document.createElement('div');
   d.className='row';
   const ss2=conSugs?`<div class="sugs">${
     ['¿Cuál es la oportunidad más urgente?',
-     '¿A qué precio ofrecerle a FUPAVID?',
-     '¿Qué municipios tienen externos?',
+     'Precio del huevo hoy',
+     '¿Qué municipios tienen externos que puedo atacar?',
      '¿Hay convocatorias urgentes?',
-     'Compara con la semana anterior']
+     '¿A qué precio ofrecerle a FUPAVID esta semana?']
     .map(s=>`<button class="sug" onclick="qs(this)">${s}</button>`).join('')
   }</div>`:'';
   d.innerHTML=`<div class="av ai">AP</div><div class="bub ai">${fmt(txt)}${ss2}</div>`;
   c.appendChild(d); c.scrollTop=c.scrollHeight;
 }
+
 function addUser(txt){
   const c=document.getElementById('msgs');
   const d=document.createElement('div');
@@ -259,6 +269,18 @@ function addUser(txt){
   d.innerHTML=`<div class="av hu">YO</div><div class="bub hu">${txt.replace(/\n/g,'<br>')}</div>`;
   c.appendChild(d); c.scrollTop=c.scrollHeight;
 }
+
+function addSearching(){
+  const c=document.getElementById('msgs');
+  const d=document.createElement('div');
+  d.id='searching';
+  d.className='wsearch';
+  d.innerHTML='🔍 Buscando en internet...';
+  c.appendChild(d); c.scrollTop=c.scrollHeight;
+}
+
+function rmSearching(){const e=document.getElementById('searching');if(e)e.remove();}
+
 function addTyping(){
   const c=document.getElementById('msgs');
   const d=document.createElement('div');
@@ -268,53 +290,55 @@ function addTyping(){
 }
 function rmTyping(){const e=document.getElementById('typ');if(e)e.remove();}
 
-async function llamarAPI(body){
-  // Intenta directo primero, luego proxy si falla
-  try{
-    const r=await fetch(DIRECT,body);
-    return r;
-  }catch(e){
-    // CORS bloqueado — usar proxy
-    const bodyObj=JSON.parse(body.body);
-    const r2=await fetch(PROXY,{
-      method:'POST',
-      headers:body.headers,
-      body:JSON.stringify(bodyObj)
-    });
-    return r2;
-  }
-}
-
-async function claude(msg,auto=false){
+async function claude(msg, auto=false, useWebSearch=false){
   if(!apiKey){showKeyPrompt();return;}
   if(!auto){addUser(msg);hist.push({role:'user',content:msg});}
+
+  const wsearch = useWebSearch || needsWebSearch(msg);
+
   busy=true; document.getElementById('sb').disabled=true;
-  addTyping();
+
+  if(wsearch) addSearching();
+  else addTyping();
+
   try{
-    const sys=CTX+(reporte?`\n\nREPORTE ACTUAL (${fechaR}):\n${reporte.slice(0,6000)}`:'');
-    const msgs=auto?[{role:'user',content:msg}]:hist.slice(-20);
-    const r=await fetch(PROXY,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        apiKey:apiKey,
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1200,
-        system:sys,
-        messages:msgs
+    const sys = CTX + (reporte
+      ? `\n\nREPORTE SEMANAL REAL (${fechaR}) — USA ESTA INFORMACIÓN COMO FUENTE PRINCIPAL:\n${reporte.slice(0,7000)}`
+      : '\n\nSin reporte semanal cargado. Usa búsqueda web para obtener datos actuales.');
+
+    const msgs = auto ? [{role:'user',content:msg}] : hist.slice(-20);
+
+    const r = await fetch(WORKER, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        apiKey,
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: sys,
+        messages: msgs,
+        useWebSearch: wsearch
       })
     });
-    
-    const dat=await r.json();
-    if(!r.ok) throw new Error(dat.error?.message||'HTTP '+r.status);
-    const rep=dat.content.map(b=>b.text||'').join('');
-    rmTyping(); addAI(rep,!auto&&hist.length<=2);
-    if(!auto) hist.push({role:'assistant',content:rep});
+
+    const dat = await r.json();
+    if(!r.ok) throw new Error(dat.error?.message || 'HTTP '+r.status);
+
+    // Extraer respuesta (puede incluir tool_use de web search)
+    const rep = dat.content
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+
+    rmSearching(); rmTyping();
+    addAI(rep, !auto && hist.length <= 2);
+    if(!auto) hist.push({role:'assistant', content: rep});
+
   }catch(e){
-    rmTyping();
+    rmSearching(); rmTyping();
     if(e.message.includes('401')||e.message.includes('invalid')){
       apiKey=''; localStorage.removeItem('avicola_k');
-      addAI('API key inválida. Ingresa una nueva desde console.anthropic.com');
+      addAI('API key inválida. Ingresa una nueva.');
       showKeyPrompt();
     } else {
       addAI('Error: '+e.message);
@@ -322,6 +346,7 @@ async function claude(msg,auto=false){
   }
   busy=false; document.getElementById('sb').disabled=false;
 }
+
 async function enviar(){
   if(busy) return;
   const el=document.getElementById('inp');
@@ -329,6 +354,7 @@ async function enviar(){
   el.value=''; el.style.height='auto';
   await claude(t);
 }
+
 function qs(btn){document.getElementById('inp').value=btn.textContent;enviar();}
 cargar();
 </script>
