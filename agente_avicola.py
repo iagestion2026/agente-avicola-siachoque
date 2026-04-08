@@ -201,7 +201,7 @@ def buscar_secop2_por_dpto(terminos):
                     "$select": "nombre_entidad,ciudad,departamento,"
                                "descripcion_del_proceso,proveedor_adjudicado,"
                                "documento_proveedor,valor_del_contrato,"
-                               "fecha_de_firma,estado_contrato"
+                               "fecha_de_firma,estado_contrato,urlproceso"
                 },
                 f"SECOP2 dpto '{t}'"
             )
@@ -240,7 +240,7 @@ def buscar_secop2_por_municipios(terminos):
                     "$select": "nombre_entidad,ciudad,departamento,"
                                "descripcion_del_proceso,proveedor_adjudicado,"
                                "documento_proveedor,valor_del_contrato,"
-                               "fecha_de_firma"
+                               "fecha_de_firma,urlproceso"
                 },
                 f"Lote{i+1} '{t}'"
             )
@@ -356,6 +356,48 @@ def buscar_dando_pasos():
     return resultados
 
 
+
+def calcular_precio_huevo(valor_str, objeto):
+    """
+    Estima el precio unitario del huevo basado en el valor total del contrato
+    y palabras clave del objeto que indican cantidad.
+    Retorna string con estimado o vacío si no es posible.
+    """
+    try:
+        valor = float(str(valor_str).replace(",","").replace("$","").strip() or 0)
+        if valor <= 0:
+            return ""
+        objeto_up = objeto.upper()
+
+        # Si el objeto menciona cantidad de huevos explícitamente
+        import re
+        # Buscar patrones como "1000 HUEVOS", "500 CUBETAS", etc.
+        m_unidades = re.search(r"([\d.,]+)\s*(UNIDADES|HUEVOS|UND)", objeto_up)
+        m_cubetas  = re.search(r"([\d.,]+)\s*(CUBETAS?|CUBETA)", objeto_up)
+
+        if m_unidades:
+            unidades = float(m_unidades.group(1).replace(",","").replace(".",""))
+            if unidades > 0:
+                precio_unit = valor / unidades
+                return f"${precio_unit:,.0f}/und"
+        if m_cubetas:
+            cubetas = float(m_cubetas.group(1).replace(",","").replace(".",""))
+            if cubetas > 0:
+                precio_cub = valor / cubetas
+                return f"${precio_cub:,.0f}/cubeta"
+
+        # Si es contrato de suministro de huevos, estimar basado en
+        # precio de mercado ~$400/und y valor total
+        if any(x in objeto_up for x in ["HUEVO","AVICOLA","AVÍCOLA"]):
+            precio_ref = 400  # precio referencia por unidad
+            unidades_est = valor / precio_ref
+            return f"~{unidades_est:,.0f} und estimadas"
+
+    except:
+        pass
+    return ""
+
+
 def normalizar_y_filtrar(raw_list, campo_entidad, campo_municipio,
                           campo_dpto, campo_objeto, campo_proveedor,
                           campo_nit, campo_valor, campo_fecha, fuente):
@@ -375,6 +417,15 @@ def normalizar_y_filtrar(raw_list, campo_entidad, campo_municipio,
         valor     = str(c.get(campo_valor, "N/A"))
         fecha     = str(c.get(campo_fecha, "N/A"))[:10]
 
+        # URL directa al proceso en SECOP
+        url_raw = c.get("urlproceso", {})
+        if isinstance(url_raw, dict):
+            url = url_raw.get("url", "")
+        else:
+            url = str(url_raw) if url_raw else ""
+        if not url or url == "None":
+            url = ""
+
         # FILTRO CRÍTICO: solo Boyacá
         if not es_boyaca(municipio, dpto, entidad):
             descartados += 1
@@ -390,7 +441,9 @@ def normalizar_y_filtrar(raw_list, campo_entidad, campo_municipio,
             "nit_prov":  nit,
             "tipo_prov": clasificar_proveedor(proveedor, nit),
             "valor":     valor,
-            "fecha":     fecha
+            "fecha":     fecha,
+            "url":       url,
+            "precio_huevo_est": calcular_precio_huevo(valor, objeto)
         })
 
     if descartados > 0:
@@ -505,7 +558,8 @@ def secop_completo():
 
 def guardar_excels(contratos, fecha):
     campos = ["fuente","entidad","municipio","objeto","categoria",
-              "proveedor","nit_prov","tipo_prov","valor","fecha"]
+              "proveedor","nit_prov","tipo_prov","valor","fecha",
+              "url","precio_huevo_est"]
 
     archivos = {
         f"1_TODOS_contratos_{fecha}.csv":          contratos,
