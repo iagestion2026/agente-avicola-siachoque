@@ -13,7 +13,7 @@ from pathlib import Path
 API_KEY       = os.environ.get("ANTHROPIC_API_KEY","")
 GMAIL_USER    = os.environ.get("GMAIL_USER","")
 GMAIL_PASS    = os.environ.get("GMAIL_PASSWORD","").replace(" ","")
-GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN","")   # nuevo secret
+GH_TOKEN = os.environ.get("GH_GIST_TOKEN","")
 fecha         = date.today().isoformat()
 NIT           = "900514813"
 
@@ -81,7 +81,7 @@ if n_filas == 0:
 # PASO 2: Publicar reporte en GitHub Gist
 # ─────────────────────────────────────────────
 gist_url = ""
-if GITHUB_TOKEN:
+if GH_TOKEN:
     print("\nPublicando reporte en GitHub Gist...")
     try:
         # Leer el reporte TXT
@@ -135,7 +135,7 @@ precios, FUPAVID, convocatorias y oportunidades.
 
         # Buscar si ya existe un Gist del agente para actualizarlo
         headers_gh = {
-            "Authorization": f"token {GITHUB_TOKEN}",
+            "Authorization": f"token {GH_TOKEN}",
             "Accept": "application/vnd.github.v3+json"
         }
 
