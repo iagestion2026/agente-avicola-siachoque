@@ -101,8 +101,8 @@ textarea:disabled{opacity:.4}
 <script>
 const GH='iagestion2026';
 // Proxy CORS gratuito para llamadas a Anthropic desde el navegador
-const PROXY='https://corsproxy.io/?https://api.anthropic.com/v1/messages';
-const DIRECT='https://api.anthropic.com/v1/messages';
+const PROXY='https://wispy-smoke-6667.ia-gestion2026.workers.dev';
+
 
 const CTX=`Eres el asesor personal de un avicultor campesino de Siachoque, Boyacá, Colombia.
 500-2000 gallinas ponedoras. Objetivo: vender huevos frescos a entidades públicas.
@@ -293,21 +293,17 @@ async function claude(msg,auto=false){
   try{
     const sys=CTX+(reporte?`\n\nREPORTE ACTUAL (${fechaR}):\n${reporte.slice(0,6000)}`:'');
     const msgs=auto?[{role:'user',content:msg}]:hist.slice(-20);
-    const hdrs={
-      'Content-Type':'application/json',
-      'x-api-key':apiKey,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    };
-    const bdy=JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,system:sys,messages:msgs});
-    
-    let r;
-    try{
-      r=await fetch(DIRECT,{method:'POST',headers:hdrs,body:bdy});
-    }catch(corsErr){
-      // Intentar con proxy
-      r=await fetch(PROXY,{method:'POST',headers:hdrs,body:bdy});
-    }
+    const r=await fetch(PROXY,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        apiKey:apiKey,
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1200,
+        system:sys,
+        messages:msgs
+      })
+    });
     
     const dat=await r.json();
     if(!r.ok) throw new Error(dat.error?.message||'HTTP '+r.status);
