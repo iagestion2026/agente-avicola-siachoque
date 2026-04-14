@@ -9,7 +9,12 @@ if not API_KEY:
 print(f"OK: API key ({API_KEY[:12]}...)")
 Path("reportes").mkdir(exist_ok=True)
 
-NIT_DANDO_PASOS = "900514813"
+NIT_DANDO_PASOS   = "900514813"
+NIT_FUPAVID       = "901432698"
+NIT_SOMOS_MANOS   = ""  # NIT pendiente de confirmar — se busca por nombre
+NOMBRE_SOMOS_MANOS = "SOMOS MANOS UNIDAS"
+EMAIL_SOMOS_MANOS  = "fundacionpae@hotmail.com"
+TEL_SOMOS_MANOS    = "3106138276"
 
 # ═══════════════════════════════════════════════════════════
 # LOS 123 MUNICIPIOS DE BOYACÁ — nombres exactos como están
@@ -70,28 +75,46 @@ def api_get(url, params, nombre=""):
     return []
 
 
-def claude_buscar(prompt, intento=1):
+def claude_buscar(prompt, intento=1, usar_websearch=True):
+    """Llama a Claude con web search. Si falla por 529, reintenta.
+    Si agota reintentos, intenta sin web search como fallback."""
+    tools = [{"type": "web_search_20250305", "name": "web_search"}] if usar_websearch else []
+    payload = {
+        "model": "claude-haiku-4-5-20251001",  # Haiku es más rápido y menos propenso a 529
+        "max_tokens": 1000,
+        "messages": [{"role": "user", "content": prompt}]
+    }
+    if tools:
+        payload["tools"] = tools
+
     try:
         r = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={"Content-Type": "application/json",
                      "x-api-key": API_KEY,
                      "anthropic-version": "2023-06-01"},
-            json={"model": "claude-sonnet-4-20250514",
-                  "max_tokens": 1500,
-                  "tools": [{"type": "web_search_20250305", "name": "web_search"}],
-                  "messages": [{"role": "user", "content": prompt}]},
+            json=payload,
             timeout=90
         )
         r.raise_for_status()
         return " ".join(b["text"] for b in r.json().get("content", [])
                         if b.get("type") == "text")
     except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 429 and intento <= 3:
-            time.sleep(intento * 30)
-            return claude_buscar(prompt, intento + 1)
-        return f"Error: {e}"
+        codigo = e.response.status_code if e.response else 0
+        if codigo in (429, 529, 503, 502) and intento <= 5:
+            espera = intento * 45
+            print(f"    API error {codigo}. Esperando {espera}s (intento {intento}/5)...")
+            time.sleep(espera)
+            return claude_buscar(prompt, intento + 1, usar_websearch)
+        # Si agotó reintentos con web search, intentar sin web search
+        if usar_websearch and intento > 5:
+            print("    Intentando sin web search como fallback...")
+            return claude_buscar(prompt, 1, usar_websearch=False)
+        return f"Error {codigo}: {e}"
     except Exception as e:
+        if intento <= 3:
+            time.sleep(30)
+            return claude_buscar(prompt, intento + 1, usar_websearch)
         return f"Error: {e}"
 
 
@@ -312,6 +335,75 @@ def buscar_militares():
     return resultados
 
 
+def buscar_somos_manos():
+    """Busca Fundación Somos Manos Unidas — operador PAE/ICBF/USPEC."""
+    print(f"  [SOMOS MANOS UNIDAS] Buscando por nombre...")
+    resultados = []
+
+    configs = [
+        ("https://www.datos.gov.co/resource/jbjy-vk9h.json",
+         "proveedor_adjudicado","documento_proveedor","ciudad",
+         "descripcion_del_proceso","valor_del_contrato","fecha_de_firma"),
+        ("https://www.datos.gov.co/resource/9kwp-7nmt.json",
+         "nom_razon_social_contratista","identificacion_del_contratista",
+         "municipios_ejecucion","objeto_a_contratar","cuantia_proceso",
+         "fecha_de_firma_del_contrato"),
+    ]
+
+    for url, cp, cn, cm, co, cv, cf in configs:
+        # Buscar como proveedor
+        datos = api_get(url, {
+            "$where": f"upper({cp}) like '%SOMOS MANOS%' "
+                      f"OR upper({cp}) like '%MANOS UNIDAS%'",
+            "$limit": "50",
+            "$select": f"nombre_entidad,{cm},{co},{cp},{cn},{cv},{cf}"
+        }, "Somos Manos (proveedor)")
+        for c in datos:
+            resultados.append({
+                "fuente":    "SOMOS MANOS UNIDAS",
+                "entidad":   str(c.get("nombre_entidad", "N/A")),
+                "municipio": str(c.get(cm, "N/A")),
+                "objeto":    str(c.get(co, "N/A"))[:130],
+                "categoria": clasificar_categoria(str(c.get(co, ""))),
+                "proveedor": str(c.get(cp, "N/A")),
+                "nit_prov":  str(c.get(cn, "N/A")),
+                "tipo_prov": "FUNDACION SOMOS MANOS UNIDAS",
+                "valor":     str(c.get(cv, "N/A")),
+                "fecha":     str(c.get(cf, "N/A"))[:10],
+                "url":       "",
+                "precio_huevo": "",
+                "contacto":  f"Tel: {TEL_SOMOS_MANOS} | Email: {EMAIL_SOMOS_MANOS}"
+            })
+
+        # Buscar también como entidad compradora
+        datos2 = api_get(url, {
+            "$where": f"upper(nombre_entidad) like '%SOMOS MANOS%' "
+                      f"OR upper(nombre_entidad) like '%MANOS UNIDAS%'",
+            "$limit": "50",
+            "$select": f"nombre_entidad,{cm},{co},{cp},{cn},{cv},{cf}"
+        }, "Somos Manos (entidad)")
+        for c in datos2:
+            resultados.append({
+                "fuente":    "SOMOS MANOS UNIDAS (comprador)",
+                "entidad":   str(c.get("nombre_entidad", "N/A")),
+                "municipio": str(c.get(cm, "N/A")),
+                "objeto":    str(c.get(co, "N/A"))[:130],
+                "categoria": clasificar_categoria(str(c.get(co, ""))),
+                "proveedor": str(c.get(cp, "N/A")),
+                "nit_prov":  str(c.get(cn, "N/A")),
+                "tipo_prov": "FUNDACION SOMOS MANOS UNIDAS",
+                "valor":     str(c.get(cv, "N/A")),
+                "fecha":     str(c.get(cf, "N/A"))[:10],
+                "url":       "",
+                "precio_huevo": "",
+                "contacto":  f"Tel: {TEL_SOMOS_MANOS} | Email: {EMAIL_SOMOS_MANOS}"
+            })
+        time.sleep(1)
+
+    print(f"    Somos Manos Unidas: {len(resultados)} registros")
+    return resultados
+
+
 def buscar_dando_pasos():
     """Busca Fundacion Dando Pasos por NIT en todos los datasets."""
     print(f"  [DANDO PASOS] NIT {NIT_DANDO_PASOS}...")
@@ -507,6 +599,39 @@ def secop_completo():
     dando = buscar_dando_pasos()
     todos.extend(dando)
 
+    # ── Estrategia 6: Somos Manos Unidas ──
+    somos_manos = buscar_somos_manos()
+    todos.extend(somos_manos)
+
+    # ── Estrategia 7: FUPAVID por NIT ──
+    print(f"  [FUPAVID] NIT {NIT_FUPAVID}...")
+    for url_fup in ["https://www.datos.gov.co/resource/jbjy-vk9h.json",
+                    "https://www.datos.gov.co/resource/9kwp-7nmt.json"]:
+        datos_fup = api_get(url_fup, {
+            "$where": f"documento_proveedor='{NIT_FUPAVID}' "
+                      f"OR upper(proveedor_adjudicado) like '%FUPAVID%'",
+            "$limit": "50"
+        }, "FUPAVID NIT")
+        for c in datos_fup:
+            prov = str(c.get("proveedor_adjudicado", c.get("nom_razon_social_contratista","FUPAVID")))
+            url_raw = c.get("urlproceso", {})
+            url_p = url_raw.get("url","") if isinstance(url_raw, dict) else str(url_raw or "")
+            todos.append({
+                "fuente":    "FUPAVID",
+                "entidad":   str(c.get("nombre_entidad","N/A")),
+                "municipio": str(c.get("ciudad", c.get("municipios_ejecucion","N/A"))),
+                "objeto":    str(c.get("descripcion_del_proceso", c.get("objeto_a_contratar","N/A")))[:130],
+                "categoria": "PAE ESCOLAR",
+                "proveedor": prov,
+                "nit_prov":  NIT_FUPAVID,
+                "tipo_prov": "FUPAVID (operador PAE)",
+                "valor":     str(c.get("valor_del_contrato", c.get("cuantia_proceso","N/A"))),
+                "fecha":     str(c.get("fecha_de_firma", c.get("fecha_de_firma_del_contrato","N/A")))[:10],
+                "url":       url_p,
+                "precio_huevo": ""
+            })
+        time.sleep(1)
+
     # ── Deduplicar ──
     vistos = set()
     unicos = []
@@ -606,15 +731,17 @@ def main():
     contratos = secop_completo()
     guardar_excels(contratos, fecha)
 
-    dando_f  = [c for c in contratos if "DANDO PASOS" in c["tipo_prov"]]
-    externos = [c for c in contratos if c["tipo_prov"] in
+    dando_f    = [c for c in contratos if "DANDO PASOS" in c["tipo_prov"]]
+    somos_f    = [c for c in contratos if "SOMOS MANOS" in c["tipo_prov"]]
+    fupavid_f  = [c for c in contratos if "FUPAVID" in c["tipo_prov"]]
+    externos   = [c for c in contratos if c["tipo_prov"] in
                 ("INTERMEDIARIO EXTERNO","EXTERNO (verificar)")]
-    locales  = [c for c in contratos if "LOCAL" in c["tipo_prov"]]
-    icbf_l   = [c for c in contratos if "ICBF" in c["categoria"] or "HOGAR" in c["categoria"]]
-    pae_l    = [c for c in contratos if "PAE" in c["categoria"]]
-    mil_l    = [c for c in contratos if "MILITAR" in c["categoria"]]
-    ese_l    = [c for c in contratos if "HOSPITAL" in c["categoria"]]
-    munis    = set(c["municipio"] for c in contratos
+    locales    = [c for c in contratos if "LOCAL" in c["tipo_prov"]]
+    icbf_l     = [c for c in contratos if "ICBF" in c["categoria"] or "HOGAR" in c["categoria"]]
+    pae_l      = [c for c in contratos if "PAE" in c["categoria"]]
+    mil_l      = [c for c in contratos if "MILITAR" in c["categoria"]]
+    ese_l      = [c for c in contratos if "HOSPITAL" in c["categoria"]]
+    munis      = set(c["municipio"] for c in contratos
                   if c["municipio"] not in ("N/A","Nacional","Bogotá","BOGOTA"))
 
     # 2. Convocatorias
@@ -671,21 +798,46 @@ def main():
     nutritunja = [c for c in locales if "NUTRITUNJA" in c["proveedor"].upper()]
     edil       = [c for c in contratos if "ALIMENTOS EDIL" in c["proveedor"].upper()]
 
+    txt_dando = "\n".join(
+        f"  {c['municipio']:18} | {c['entidad'][:40]} | "
+        f"{c['categoria']} | ${c['valor']} | {c['fecha']}"
+        for c in dando_f
+    ) or f"  NIT {NIT_DANDO_PASOS}: 0 contratos directos en SECOP."
+
+    txt_ext = "\n".join(
+        f"  {c['municipio']:18} | {c['entidad'][:35]} | "
+        f"{c['proveedor'][:28]} | ${c['valor']}"
+        for c in externos[:10]
+    ) or "  Sin externos en Boyacá esta semana"
+
+    txt_somos = "\n".join(
+        f"  {c['municipio']:18} | {c['entidad'][:40]} | "
+        f"{c['categoria']} | ${c['valor']} | {c['fecha']}"
+        for c in somos_f
+    ) or f"  Sin contratos en SECOP — contactar directamente: {TEL_SOMOS_MANOS}"
+
+    txt_fupavid = "\n".join(
+        f"  {c['municipio']:18} | ${c['valor']} | {c['fecha']}"
+        for c in fupavid_f[:8]
+    ) or "  Sin contratos FUPAVID en SECOP esta semana"
+
     resumen = claude_buscar(
         f"Eres asesor de avicultor de Siachoque, Boyaca, 500-2000 aves. "
         f"Hoy: {date.today().strftime('%d/%m/%Y')}. "
         f"Municipios Boyaca con datos: {len(munis)}. "
         f"Contratos totales: {len(contratos)}. "
-        f"DANDO PASOS ({len(dando_f)} contratos): {txt_dando[:300]}. "
-        f"EXTERNOS BOYACA ({len(externos)}): {txt_ext[:400]}. "
-        f"UT NUTRITUNJA (operador PAE Tunja $11.510M): {len(nutritunja)} contratos detectados. "
-        f"ALIMENTOS EDIL SAS (proveedor FFMM $8.700M): {len(edil)} contratos. "
+        f"FUPAVID — operador PAE 10 municipios ($17.078M total): {txt_fupavid[:200]}. "
+        f"SOMOS MANOS UNIDAS — operador PAE/ICBF/USPEC ({TEL_SOMOS_MANOS}): {txt_somos[:200]}. "
+        f"DANDO PASOS ({len(dando_f)} contratos): {txt_dando[:200]}. "
+        f"EXTERNOS BOYACA ({len(externos)}): {txt_ext[:300]}. "
         f"ICBF/FAMI: {len(icbf_l)} | PAE: {len(pae_l)} | FFMM: {len(mil_l)}. "
         f"Precio: {precio[:120]}. "
         f"Convocatorias: {convocatorias[:300]}. "
-        "CONTACTOS: ESE Siachoque 7319093, Alcaldia 7404476, "
+        "CONTACTOS: ESE Siachoque 7319093 (Heidy Johana Correa), "
+        "Alcaldia 7404476 (Jairo Grijalba), "
         "ESE Soraca 7404270, ESE Tunja 311-2169007, "
-        "ICBF (608)7422929, ALFM 018000126537, PAE 7420150 Ext.2367. "
+        "ICBF (608)7422929, ALFM 018000126537, PAE 7420150 Ext.2367, "
+        f"Somos Manos Unidas {TEL_SOMOS_MANOS}. "
         "Dame las 3 ACCIONES MAS URGENTES esta semana. "
         "Para cada una: municipio, entidad, telefono, que decir exactamente. "
         "Maximo 300 palabras. Solo texto plano."
@@ -718,6 +870,8 @@ ICBF Y MILITARES EN TU ZONA:
 RESUMEN SECOP — SOLO BOYACA
 Municipios con contratos:     {len(munis)}
 Total contratos:              {len(contratos)}
+FUPAVID (10 municipios):      {len(fupavid_f)} contratos
+Somos Manos Unidas:           {len(somos_f)} registros
 Fundacion Dando Pasos:        {len(dando_f)} contratos
 Externos (atacar):            {len(externos)}
 Proveedores locales:          {len(locales)}
